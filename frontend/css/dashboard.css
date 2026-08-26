@@ -1,0 +1,25 @@
+@import url('style.css');
+
+/* Page Specific Styles: Executive Dashboard */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 4px; height: 100%;
+  background-color: var(--card-accent, #2563eb);
+}
+
+.bg-gradient-primary-soft {
+  background: linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(59,130,246,0.02) 100%);
+  border: 1px solid rgba(37,99,235,0.12) !important;
+}

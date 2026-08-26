@@ -1,0 +1,19 @@
+@import url('style.css');
+
+/* Page Specific Styles: Timetable Schedule Grid */
+.timetable-grid-table th {
+  background-color: var(--navy);
+  color: #ffffff;
+  text-align: center;
+}
+
+.timetable-slot-cell {
+  background-color: rgba(37, 99, 235, 0.04);
+  border-radius: 6px;
+  padding: 0.5rem;
+  transition: background-color 0.2s ease;
+}
+
+.timetable-slot-cell:hover {
+  background-color: rgba(37, 99, 235, 0.12);
+}

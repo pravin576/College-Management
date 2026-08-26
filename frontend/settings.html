@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Settings - College ERP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/settings.css">
+</head>
+<body>
+
+  <div class="erp-wrapper">
+    <aside class="erp-sidebar" id="erpSidebar">
+      <div class="erp-sidebar-header">
+        <div class="brand-logo">  <img src="images/logo.jpg" alt="College ERP Logo"></div>
+        <h1 class="erp-sidebar-brand">GPA<span>ERP</span></h1>
+      </div>
+
+      <div class="erp-sidebar-menu">
+        <div class="erp-menu-category">MAIN MENU</div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="dashboard.html"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a></div>
+        <div class="erp-nav-item nav-admin-hod-fac"><a class="erp-nav-link" href="students.html"><i class="bi bi-mortarboard-fill"></i> Students</a></div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="faculty.html"><i class="bi bi-person-video3"></i> Faculty</a></div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="hod.html"><i class="bi bi-person-badge-fill"></i> HOD Portal</a></div>
+
+        <div class="erp-menu-category">ACADEMICS & FEES</div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="attendance.html"><i class="bi bi-calendar-check-fill"></i> Attendance</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="fees.html"><i class="bi bi-credit-card-fill"></i> Fees Management</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="results.html"><i class="bi bi-journal-bookmark-fill"></i> Exam Results</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="timetable.html"><i class="bi bi-clock-fill"></i> Timetable</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="notices.html"><i class="bi bi-megaphone-fill"></i> Notice Board</a></div>
+
+        <div class="erp-menu-category">SYSTEM & ACCOUNT</div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="contact.html"><i class="bi bi-envelope-fill"></i> Contact Inquiries</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="profile.html"><i class="bi bi-person-circle"></i> My Profile</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link active" href="settings.html"><i class="bi bi-gear-fill"></i> Settings</a></div>
+      </div>
+
+      <div class="erp-sidebar-footer">
+        <div class="erp-user-badge mb-2">
+          <div class="erp-user-avatar" id="sidebarAvatar">U</div>
+          <div class="erp-user-meta">
+            <h6 class="erp-user-name" id="sidebarUserName">Loading...</h6>
+            <span class="erp-user-role" id="sidebarUserRole">Role</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger w-100" onclick="logoutUser()"><i class="bi bi-box-arrow-right me-1"></i> Sign Out</button>
+      </div>
+    </aside>
+
+    <main class="erp-main">
+      <header class="erp-header">
+        <div class="d-flex align-items-center gap-3">
+          <button class="erp-toggle-btn" onclick="toggleSidebar()"><i class="bi bi-list fs-4"></i></button>
+          <h2 class="erp-page-title mb-0">System Preferences & Settings</h2>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+          <button class="erp-icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i class="bi bi-moon-stars"></i></button>
+        </div>
+      </header>
+
+      <div class="erp-content">
+        <div class="row justify-content-center">
+          <div class="col-lg-8">
+            <div class="card shadow-sm p-4 mb-4">
+              <h5 class="fw-bold mb-3"><i class="bi bi-palette text-primary me-2"></i> Theme & Display Preferences</h5>
+              <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div>
+                  <strong>Dark Mode Theme</strong>
+                  <p class="text-muted small mb-0">Switch between dark mode and light high-contrast themes.</p>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" onclick="toggleTheme()"><i class="bi bi-moon-stars me-1"></i> Toggle Theme</button>
+              </div>
+            </div>
+
+            <div class="card shadow-sm p-4">
+              <h5 class="fw-bold mb-3"><i class="bi bi-shield-check text-primary me-2"></i> System Information</h5>
+              <div class="small text-muted">
+                <p><strong>System Name:</strong> Government Polytechnic Awasari (Khurd) ERP</p>
+                <p><strong>Backend:</strong> Python 3 http.server + SQLite Data Persistence</p>
+                <p><strong>Session Security:</strong> Server-side Token Sessions & Role-based Authorization</p>
+                <p><strong>Database Status:</strong> Operational (Zero Demo Records)</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/script.js"></script>
+  <script src="js/settings.js"></script>
+</body>
+</html>

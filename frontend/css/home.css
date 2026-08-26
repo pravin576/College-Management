@@ -1,0 +1,19 @@
+@import url('style.css');
+
+/* Page Specific Styles: Public Home Page */
+.home-hero-banner {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border-radius: 16px;
+  padding: 3.5rem 2rem;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.2);
+}
+
+.home-feature-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+}

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Management - College ERP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/attendance.css">
+</head>
+<body>
+
+  <div class="erp-wrapper">
+    <aside class="erp-sidebar" id="erpSidebar">
+      <div class="erp-sidebar-header">
+        <div class="brand-logo"><img src="images/logo.jpg" alt="College ERP"></div>
+        <h1 class="erp-sidebar-brand"> GPA <span>ERP</span></h1>
+      </div>
+
+      <div class="erp-sidebar-menu">
+        <div class="erp-menu-category">MAIN MENU</div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="dashboard.html"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a></div>
+        <div class="erp-nav-item nav-admin-hod-fac"><a class="erp-nav-link" href="students.html"><i class="bi bi-mortarboard-fill"></i> Students</a></div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="faculty.html"><i class="bi bi-person-video3"></i> Faculty</a></div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="hod.html"><i class="bi bi-person-badge-fill"></i> HOD Portal</a></div>
+
+        <div class="erp-menu-category">ACADEMICS & FEES</div>
+        <div class="erp-nav-item"><a class="erp-nav-link active" href="attendance.html"><i class="bi bi-calendar-check-fill"></i> Attendance</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="fees.html"><i class="bi bi-credit-card-fill"></i> Fees Management</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="results.html"><i class="bi bi-journal-bookmark-fill"></i> Exam Results</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="timetable.html"><i class="bi bi-clock-fill"></i> Timetable</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="notices.html"><i class="bi bi-megaphone-fill"></i> Notice Board</a></div>
+
+        <div class="erp-menu-category">SYSTEM & ACCOUNT</div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="contact.html"><i class="bi bi-envelope-fill"></i> Contact Inquiries</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="profile.html"><i class="bi bi-person-circle"></i> My Profile</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="settings.html"><i class="bi bi-gear-fill"></i> Settings</a></div>
+      </div>
+
+      <div class="erp-sidebar-footer">
+        <div class="erp-user-badge mb-2">
+          <div class="erp-user-avatar" id="sidebarAvatar">U</div>
+          <div class="erp-user-meta">
+            <h6 class="erp-user-name" id="sidebarUserName">Loading...</h6>
+            <span class="erp-user-role" id="sidebarUserRole">Role</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger w-100" onclick="logoutUser()"><i class="bi bi-box-arrow-right me-1"></i> Sign Out</button>
+      </div>
+    </aside>
+
+    <main class="erp-main">
+      <header class="erp-header">
+        <div class="d-flex align-items-center gap-3">
+          <button class="erp-toggle-btn" onclick="toggleSidebar()"><i class="bi bi-list fs-4"></i></button>
+          <h2 class="erp-page-title mb-0">Student Attendance Management</h2>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button class="erp-icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i class="bi bi-moon-stars"></i></button>
+          <a class="btn btn-sm btn-outline-primary fw-bold" href="/api/attendance/excel-template" download="attendance_import_template.xlsx" title="Download Attendance Excel Template">
+            <i class="bi bi-download me-1"></i> Download Attendance Template
+          </a>
+          <button class="btn btn-sm btn-success fw-bold action-add-attendance" onclick="openModal('excelAttendanceImportModal')">
+            <i class="bi bi-file-earmark-excel me-1"></i> Import Attendance from Excel
+          </button>
+          <button class="btn btn-sm btn-primary fw-bold action-add-attendance" onclick="openModal('markAttendanceModal')">
+            <i class="bi bi-plus-lg me-1"></i> Mark Attendance Record
+          </button>
+        </div>
+      </header>
+
+      <div class="erp-content">
+        <!-- Attendance Multi-Filter Controls -->
+        <div class="card mb-4 shadow-sm">
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <input type="text" id="searchAttendanceInput" class="form-control form-control-sm" placeholder="Search Student ID / Name / Subject..." onkeyup="filterAttendanceTable()">
+              </div>
+              <div class="col-md-2">
+                <select id="filterAttendanceDept" class="form-select form-select-sm" onchange="filterAttendanceTable()">
+                  <option value="All">All Departments</option>
+                  <option value="Computer Engineering">Computer Engineering</option>
+                  <option value="Information Technology">Information Technology</option>
+                  <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  <option value="Civil Engineering">Civil Engineering</option>
+                  <option value="Electrical Engineering">Electrical Engineering</option>
+                  <option value="Electronics & Telecommunication">Electronics & Telecomm</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <select id="filterAttendanceYear" class="form-select form-select-sm" onchange="filterAttendanceTable()">
+                  <option value="All">All Years</option>
+                  <option value="First Year">First Year</option>
+                  <option value="Second Year">Second Year</option>
+                  <option value="Third Year">Third Year</option>
+                </select>
+              </div>
+              <div class="col-md-1">
+                <select id="filterAttendanceSem" class="form-select form-select-sm" onchange="filterAttendanceTable()">
+                  <option value="All">Sem</option>
+                  <option value="Semester 1">Sem 1</option>
+                  <option value="Semester 2">Sem 2</option>
+                  <option value="Semester 3">Sem 3</option>
+                  <option value="Semester 4">Sem 4</option>
+                  <option value="Semester 5">Sem 5</option>
+                  <option value="Semester 6">Sem 6</option>
+                </select>
+              </div>
+              <div class="col-md-1">
+                <select id="filterAttendanceDiv" class="form-select form-select-sm" onchange="filterAttendanceTable()">
+                  <option value="All">Div</option>
+                  <option value="A">Div A</option>
+                  <option value="B">Div B</option>
+                  <option value="C">Div C</option>
+                </select>
+              </div>
+              <div class="col-md-1.5">
+                <input type="date" id="filterAttendanceDate" class="form-control form-control-sm" onchange="filterAttendanceTable()">
+              </div>
+              <div class="col-md-1.5">
+                <select id="filterAttendanceStatus" class="form-select form-select-sm" onchange="filterAttendanceTable()">
+                  <option value="All">All Statuses</option>
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attendance Records Table -->
+        <div class="card shadow-sm">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle">
+                <thead class="bg-light">
+                  <tr>
+                    <th>Date</th>
+                    <th>Student ID</th>
+                    <th>Student Name</th>
+                    <th>Department</th>
+                    <th>Year / Sem / Div</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th class="action-col text-end me-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="attendanceTableBody">
+                  <tr><td colspan="8" class="text-center text-muted py-4">No data available.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Mark Attendance Modal -->
+  <div class="modal" id="markAttendanceModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="bi bi-calendar-check me-2"></i> Record Student Attendance</h5>
+          <button type="button" class="btn-close text-white" onclick="closeModal('markAttendanceModal')">✕</button>
+        </div>
+        <form id="attendanceModalForm" onsubmit="saveAttendanceForm(event)">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Student ID *</label>
+              <input type="text" id="attStudentId" class="form-control" required placeholder="e.g. STU101">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Student Name *</label>
+              <input type="text" id="attStudentName" class="form-control" required placeholder="Full Name">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Subject *</label>
+              <input type="text" id="attSubject" class="form-control" required placeholder="e.g. Data Structures">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Date *</label>
+              <input type="date" id="attDate" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Attendance Status *</label>
+              <select id="attStatus" class="form-select" required>
+                <option value="Present" selected>Present</option>
+                <option value="Absent">Absent</option>
+                <option value="Late">Late</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('markAttendanceModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary fw-bold">Save Attendance Record</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Excel Attendance Import Modal -->
+  <div class="modal" id="excelAttendanceImportModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title"><i class="bi bi-file-earmark-excel-fill me-2"></i> Import Attendance from Excel (.xlsx)</h5>
+          <button type="button" class="btn-close text-white" onclick="closeModal('excelAttendanceImportModal')">✕</button>
+        </div>
+        <form id="excelAttendanceImportForm" onsubmit="submitAttendanceExcelImport(event)">
+          <div class="modal-body">
+            <div class="alert alert-info py-2 small mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <i class="bi bi-info-circle-fill me-1"></i> Upload an Excel file (<code>.xlsx</code>) containing batch attendance for students.
+              </div>
+              <a href="/api/attendance/excel-template" download="attendance_import_template.xlsx" class="btn btn-sm btn-outline-primary fw-bold bg-white">
+                <i class="bi bi-download me-1"></i> Download Attendance Template
+              </a>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Select Excel File (.xlsx) *</label>
+              <input type="file" id="attendanceExcelFileInput" class="form-control" accept=".xlsx" required>
+              <div class="form-text">Headers: <code>Student ID, Student Name, Department, Year, Semester, Division, Subject, Subject Code, Date, Attendance Status</code></div>
+            </div>
+
+            <!-- Import Execution Summary Container -->
+            <div id="attendanceExcelResultContainer" class="d-none mt-3">
+              <div class="card bg-light border-0 shadow-sm mb-3">
+                <div class="card-body py-3">
+                  <h6 class="fw-bold text-dark mb-3"><i class="bi bi-bar-chart-fill me-1"></i> Attendance Import Breakdown</h6>
+                  <div class="row g-2 text-center">
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-primary">
+                        <div class="text-muted small">Total Rows</div>
+                        <div class="fs-5 fw-bold text-primary" id="resAttTotal">0</div>
+                      </div>
+                    </div>
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-success">
+                        <div class="text-muted small">Imported</div>
+                        <div class="fs-5 fw-bold text-success" id="resAttAdded">0</div>
+                      </div>
+                    </div>
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-warning">
+                        <div class="text-muted small">Duplicates</div>
+                        <div class="fs-5 fw-bold text-warning" id="resAttDup">0</div>
+                      </div>
+                    </div>
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-danger">
+                        <div class="text-muted small">Failed / Invalid</div>
+                        <div class="fs-5 fw-bold text-danger" id="resAttFailed">0</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Error Log Section -->
+              <div id="attendanceExcelErrorSection" class="d-none">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="fw-bold text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i> Failed / Duplicate Attendance Row Log</h6>
+                  <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="downloadAttendanceErrorReport()">
+                    <i class="bi bi-download me-1"></i> Download Error Report
+                  </button>
+                </div>
+                <div class="table-responsive border rounded bg-white overflow-auto" style="max-height: 200px;">
+                  <table class="table table-sm table-hover mb-0 small">
+                    <thead class="bg-light">
+                      <tr>
+                        <th>Excel Row #</th>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Failure Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody id="attendanceExcelErrorTableBody">
+                      <tr><td colspan="4" class="text-center text-muted">No errors found.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('excelAttendanceImportModal')">Close</button>
+            <button type="submit" class="btn btn-success fw-bold" id="btnUploadAttendanceExcel">
+              <i class="bi bi-cloud-upload me-1"></i> Upload & Import Attendance
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/script.js"></script>
+  <script src="js/attendance.js"></script>
+</body>
+</html>

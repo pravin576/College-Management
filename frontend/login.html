@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login & Registration - College ERP Management System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body class="login-page-body py-5">
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6">
+        
+        <div class="card border-0 shadow-lg p-4 bg-white" style="border-radius: 16px;">
+          <!-- Top Navigation Bar -->
+          <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+            <a href="index.html" class="text-muted small text-decoration-none"><i class="bi bi-house me-1"></i> Public Home</a>
+            <a href="index.html" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left me-1"></i> College Website</a>
+          </div>
+
+          <!-- Brand Header -->
+          <div class="text-center mb-4">
+            <a href="index.html" class="d-inline-flex align-items-center gap-2 text-decoration-none mb-2">
+              <div class="brand-logo"><img src="images/logo.jpg" alt="College ERP Logo" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'38\' height=\'38\'><rect width=\'100%\' height=\'100%\' fill=\'%230a2540\'/><text x=\'50%\' y=\'55%\' fill=\'%23c27803\' font-size=\'16\' font-weight=\'bold\' text-anchor=\'middle\' dominant-baseline=\'middle\'>GPA</text></svg>'"></div>
+              <span class="fs-2 fw-extrabold text-primary">GPA <span class="text-dark">ERP</span></span>
+            </a>
+            <h5 class="fw-bold text-dark mt-1">ERP Management Portal Access</h5>
+            <p class="text-muted small">Sign in to your account or register a new student/user profile</p>
+          </div>
+
+          <!-- Tabs Navigation -->
+          <ul class="nav nav-pills nav-justified mb-4" id="authTab" role="tablist">
+            <li class="nav-item">
+              <button class="nav-link active fw-bold" id="tab-signin" onclick="switchAuthTab('signin')"><i class="bi bi-box-arrow-in-right me-1"></i> Sign In</button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link fw-bold" id="tab-register" onclick="switchAuthTab('register')"><i class="bi bi-person-plus-fill me-1"></i> Register Account</button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link fw-bold" id="tab-forgot" onclick="switchAuthTab('forgot')"><i class="bi bi-key-fill me-1"></i> Forgot Password</button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <!-- TAB 1: SIGN IN -->
+            <div class="tab-pane active" id="pane-signin">
+              <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+                
+                <div class="mb-3">
+                  <label for="loginRole" class="form-label fw-semibold">Select Role (Optional)</label>
+                  <select class="form-select" id="loginRole">
+                    <option value="All" selected>All Roles (Auto-Detect)</option>
+                    <option value="Administrator">Administrator</option>
+                    <option value="HOD">HOD</option>
+                    <option value="Faculty">Faculty</option>
+                    <option value="Student">Student</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label for="loginUsername" class="form-label fw-semibold">Username or Email ID *</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control" id="loginUsername" placeholder="Enter your username or email" required>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="loginPassword" class="form-label fw-semibold">Password *</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-key"></i></span>
+                    <input type="password" class="form-control" id="loginPassword" placeholder="Enter your password" required>
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
+                      <i class="bi bi-eye"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                  <label class="small text-muted d-flex align-items-center gap-1">
+                    <input type="checkbox" id="rememberMe"> Remember me
+                  </label>
+                  <a href="#" class="small text-primary text-decoration-none" onclick="switchAuthTab('forgot'); return false;">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold fs-6 shadow-sm"><i class="bi bi-box-arrow-in-right me-2"></i>Sign In to Dashboard</button>
+              </form>
+            </div>
+
+            <!-- TAB 2: REGISTER -->
+            <div class="tab-pane" id="pane-register">
+              
+              <!-- Registration Success Card (Hidden by default) -->
+              <div id="registrationSuccessBox" class="card border-success shadow-sm p-4 bg-light d-none text-center mb-4">
+                <div class="mb-3">
+                  <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                </div>
+                <h5 class="fw-bold text-success mb-2">Registration Successful!</h5>
+                <p class="text-dark fw-semibold mb-2">Your account has been created successfully.</p>
+                <div class="alert alert-success py-2 mb-3">
+                  <i class="bi bi-person-badge me-1"></i> Your Username: <strong id="regSuccessUsername" class="fs-6 text-dark"></strong>
+                </div>
+                <p class="text-muted small mb-3">
+                  <i class="bi bi-shield-exclamation text-warning me-1"></i>
+                  Please remember your username and password. Do not share your password with anyone.
+                </p>
+                <button type="button" class="btn btn-success fw-bold px-4 py-2 w-100 shadow-sm" onclick="showLoginTabWithUsername()">
+                  <i class="bi bi-box-arrow-in-right me-1"></i> Go to Login
+                </button>
+              </div>
+
+              <!-- Registration Form Container -->
+              <div id="registrationFormsContainer">
+                <!-- Role Selector Dropdown -->
+                <div class="mb-3">
+                  <label for="regRole" class="form-label fw-semibold">Select Registration Role *</label>
+                  <select class="form-select border-primary fw-semibold" id="regRole" onchange="switchRegistrationRole(this.value)" required>
+                    <option value="Student" selected>Student Registration</option>
+                    <option value="Faculty"> Faculty Registration</option>
+                    <option value="HOD">HOD (Head of Department) Registration</option>
+                    <option value="Administrator">Administrator Registration</option>
+                  </select>
+                </div>
+
+                <!-- STUDENT REGISTRATION FORM -->
+                <form id="studentRegisterForm" onsubmit="handleStudentRegisterSubmit(event)">
+                  <div class="mb-3">
+                    <label for="regStudentName" class="form-label fw-semibold">1. Student Name *</label>
+                    <input type="text" class="form-control" id="regStudentName" placeholder="e.g. Rahul Sharma" required>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regStudentYear" class="form-label fw-semibold">2. Student Year *</label>
+                      <select class="form-select" id="regStudentYear" required>
+                        <option value="First Year" selected>First Year</option>
+                        <option value="Second Year">Second Year</option>
+                        <option value="Third Year">Third Year</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regStudentEmail" class="form-label fw-semibold">3. Email ID *</label>
+                      <input type="email" class="form-control" id="regStudentEmail" placeholder="student@college.edu" required>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regStudentPhone" class="form-label fw-semibold">4. Phone Number *</label>
+                      <input type="text" class="form-control" id="regStudentPhone" placeholder="e.g. 9876543210" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regStudentId" class="form-label fw-semibold">5. Student ID *</label>
+                      <input type="text" class="form-control" id="regStudentId" placeholder="e.g. STU101" required>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regStudentRollNumber" class="form-label fw-semibold">6. Student Roll Number *</label>
+                      <input type="text" class="form-control" id="regStudentRollNumber" placeholder="e.g. R101" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regStudentDepartment" class="form-label fw-semibold">7. Department *</label>
+                      <select class="form-select" id="regStudentDepartment" required>
+                        <option value="Computer Engineering" selected>Computer Engineering</option>
+                        <option value="Information Technology">Information Technology</option>
+                        <option value="Mechanical Engineering">Mechanical Engineering</option>
+                        <option value="Civil Engineering">Civil Engineering</option>
+                        <option value="Electrical Engineering">Electrical Engineering</option>
+                        <option value="Automobile Engineering">Automobile Engineering</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="regStudentUsername" class="form-label fw-semibold">8. Username *</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-at"></i></span>
+                      <input type="text" class="form-control" id="regStudentUsername" placeholder="Choose username" required>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regStudentPassword" class="form-label fw-semibold">9. Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regStudentPassword" placeholder="Create password" required oninput="checkPasswordStrength(this.value, 'stuPassStrength')">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regStudentPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                      <!-- Strength Indicator -->
+                      <div id="stuPassStrength" class="password-strength-container d-none mt-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span class="small text-muted fw-semibold">Password Strength:</span>
+                          <span class="badge bg-danger strength-badge">Weak</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                          <div class="progress-bar bg-danger strength-bar" role="progressbar" style="width: 25%;"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regStudentConfirmPassword" class="form-label fw-semibold">10. Confirm Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regStudentConfirmPassword" placeholder="Re-enter password" required>
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regStudentConfirmPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Password Tips Section -->
+                  <div class="password-tips p-3 rounded bg-light border mb-4 small text-muted">
+                    <div class="fw-bold text-dark mb-1"><i class="bi bi-shield-check me-1 text-primary"></i> Password Tips:</div>
+                    <ul class="mb-0 ps-3 small">
+                      <li>Minimum 8 characters</li>
+                      <li>Use uppercase and lowercase letters</li>
+                      <li>Use numbers</li>
+                      <li>Use a special character such as @, #, $</li>
+                      <li>Do not use name, phone number or date of birth as password</li>
+                    </ul>
+                  </div>
+
+                  <button type="submit" class="btn btn-success w-100 py-2.5 fw-bold fs-6 shadow-sm">
+                    <i class="bi bi-person-check-fill me-2"></i>Register Student Account
+                  </button>
+                </form>
+
+                <!-- FACULTY REGISTRATION FORM -->
+                <form id="facultyRegisterForm" onsubmit="handleFacultyRegisterSubmit(event)" style="display: none;">
+                  <div class="mb-3">
+                    <label for="regFacultyName" class="form-label fw-semibold">1. Faculty Name *</label>
+                    <input type="text" class="form-control" id="regFacultyName" placeholder="e.g. Prof. Amit Patil" required>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regFacultyPhone" class="form-label fw-semibold">2. Phone Number *</label>
+                      <input type="text" class="form-control" id="regFacultyPhone" placeholder="9876543210" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regFacultyEmail" class="form-label fw-semibold">3. Email ID *</label>
+                      <input type="email" class="form-control" id="regFacultyEmail" placeholder="faculty@college.edu" required>
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="regFacultyDepartment" class="form-label fw-semibold">4. Department *</label>
+                    <select class="form-select" id="regFacultyDepartment" required>
+                      <option value="Computer Engineering" selected>Computer Engineering</option>
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="Mechanical Engineering">Mechanical Engineering</option>
+                      <option value="Civil Engineering">Civil Engineering</option>
+                      <option value="Electrical Engineering">Electrical Engineering</option>
+                    </select>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="regFacultyUsername" class="form-label fw-semibold">5. Username *</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-at"></i></span>
+                      <input type="text" class="form-control" id="regFacultyUsername" placeholder="Choose username" required>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regFacultyPassword" class="form-label fw-semibold">6. Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regFacultyPassword" placeholder="Create password" required oninput="checkPasswordStrength(this.value, 'facPassStrength')">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regFacultyPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                      <!-- Strength Indicator -->
+                      <div id="facPassStrength" class="password-strength-container d-none mt-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span class="small text-muted fw-semibold">Password Strength:</span>
+                          <span class="badge bg-danger strength-badge">Weak</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                          <div class="progress-bar bg-danger strength-bar" role="progressbar" style="width: 25%;"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regFacultyConfirmPassword" class="form-label fw-semibold">7. Confirm Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regFacultyConfirmPassword" placeholder="Re-enter password" required>
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regFacultyConfirmPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Password Tips Section -->
+                  <div class="password-tips p-3 rounded bg-light border mb-4 small text-muted">
+                    <div class="fw-bold text-dark mb-1"><i class="bi bi-shield-check me-1 text-primary"></i> Password Tips:</div>
+                    <ul class="mb-0 ps-3 small">
+                      <li>Minimum 8 characters</li>
+                      <li>Use uppercase and lowercase letters</li>
+                      <li>Use numbers</li>
+                      <li>Use a special character such as @, #, $</li>
+                      <li>Do not use name, phone number or date of birth as password</li>
+                    </ul>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold fs-6 shadow-sm">
+                    <i class="bi bi-person-badge-fill me-2"></i>Register Faculty Account
+                  </button>
+                </form>
+
+                <!-- HOD REGISTRATION FORM -->
+                <form id="hodRegisterForm" onsubmit="handleHodRegisterSubmit(event)" style="display: none;">
+                  <div class="mb-3">
+                    <label for="regHodName" class="form-label fw-semibold">1. HOD Name *</label>
+                    <input type="text" class="form-control" id="regHodName" placeholder="e.g. Dr. Rajesh Kulkarni" required>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regHodDepartment" class="form-label fw-semibold">2. Department *</label>
+                      <select class="form-select" id="regHodDepartment" required>
+                        <option value="Computer Engineering" selected>Computer Engineering</option>
+                        <option value="Information Technology">Information Technology</option>
+                        <option value="Mechanical Engineering">Mechanical Engineering</option>
+                        <option value="Civil Engineering">Civil Engineering</option>
+                        <option value="Electrical Engineering">Electrical Engineering</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regHodQualification" class="form-label fw-semibold">3. Qualification *</label>
+                      <input type="text" class="form-control" id="regHodQualification" placeholder="e.g. Ph.D. in CS" required>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                      <label for="regHodPhone" class="form-label fw-semibold">4. Mobile Number *</label>
+                      <input type="text" class="form-control" id="regHodPhone" placeholder="9876543210" required>
+                    </div>
+                    <div class="col-md-4">
+                      <label for="regHodExperience" class="form-label fw-semibold">5. Experience *</label>
+                      <input type="text" class="form-control" id="regHodExperience" placeholder="e.g. 12 Years" required>
+                    </div>
+                    <div class="col-md-4">
+                      <label for="regHodEmail" class="form-label fw-semibold">6. Email Address *</label>
+                      <input type="email" class="form-control" id="regHodEmail" placeholder="hod@college.edu" required>
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="regHodUsername" class="form-label fw-semibold">7. Username *</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-at"></i></span>
+                      <input type="text" class="form-control" id="regHodUsername" placeholder="Choose username" required>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regHodPassword" class="form-label fw-semibold">8. Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regHodPassword" placeholder="Create password" required oninput="checkPasswordStrength(this.value, 'hodPassStrength')">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regHodPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                      <!-- Strength Indicator -->
+                      <div id="hodPassStrength" class="password-strength-container d-none mt-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span class="small text-muted fw-semibold">Password Strength:</span>
+                          <span class="badge bg-danger strength-badge">Weak</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                          <div class="progress-bar bg-danger strength-bar" role="progressbar" style="width: 25%;"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regHodConfirmPassword" class="form-label fw-semibold">9. Confirm Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regHodConfirmPassword" placeholder="Re-enter password" required>
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regHodConfirmPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Password Tips Section -->
+                  <div class="password-tips p-3 rounded bg-light border mb-4 small text-muted">
+                    <div class="fw-bold text-dark mb-1"><i class="bi bi-shield-check me-1 text-primary"></i> Password Tips:</div>
+                    <ul class="mb-0 ps-3 small">
+                      <li>Minimum 8 characters</li>
+                      <li>Use uppercase and lowercase letters</li>
+                      <li>Use numbers</li>
+                      <li>Use a special character such as @, #, $</li>
+                      <li>Do not use name, phone number or date of birth as password</li>
+                    </ul>
+                  </div>
+
+                  <button type="submit" class="btn btn-warning w-100 py-2.5 fw-bold fs-6 shadow-sm">
+                    <i class="bi bi-person-workspace me-2"></i>Register HOD Account
+                  </button>
+                </form>
+
+                <!-- ADMINISTRATOR REGISTRATION FORM -->
+                <form id="adminRegisterForm" onsubmit="handleAdminRegisterSubmit(event)" style="display: none;">
+                  <div class="mb-3">
+                    <label for="regAdminName" class="form-label fw-semibold">1. Administrator Name *</label>
+                    <input type="text" class="form-control" id="regAdminName" placeholder="e.g. System Administrator" required>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regAdminPhone" class="form-label fw-semibold">2. Phone Number *</label>
+                      <input type="text" class="form-control" id="regAdminPhone" placeholder="9876543210" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regAdminEmail" class="form-label fw-semibold">3. Email Address *</label>
+                      <input type="email" class="form-control" id="regAdminEmail" placeholder="admin@college.edu" required>
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="regAdminUsername" class="form-label fw-semibold">4. Username *</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-at"></i></span>
+                      <input type="text" class="form-control" id="regAdminUsername" placeholder="Choose username" required>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="regAdminPassword" class="form-label fw-semibold">5. Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regAdminPassword" placeholder="Create password" required oninput="checkPasswordStrength(this.value, 'adminPassStrength')">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regAdminPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                      <!-- Strength Indicator -->
+                      <div id="adminPassStrength" class="password-strength-container d-none mt-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span class="small text-muted fw-semibold">Password Strength:</span>
+                          <span class="badge bg-danger strength-badge">Weak</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                          <div class="progress-bar bg-danger strength-bar" role="progressbar" style="width: 25%;"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="regAdminConfirmPassword" class="form-label fw-semibold">6. Confirm Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="regAdminConfirmPassword" placeholder="Re-enter password" required>
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('regAdminConfirmPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Password Tips Section -->
+                  <div class="password-tips p-3 rounded bg-light border mb-4 small text-muted">
+                    <div class="fw-bold text-dark mb-1"><i class="bi bi-shield-check me-1 text-primary"></i> Password Tips:</div>
+                    <ul class="mb-0 ps-3 small">
+                      <li>Minimum 8 characters</li>
+                      <li>Use uppercase and lowercase letters</li>
+                      <li>Use numbers</li>
+                      <li>Use a special character such as @, #, $</li>
+                      <li>Do not use name, phone number or date of birth as password</li>
+                    </ul>
+                  </div>
+
+                  <button type="submit" class="btn btn-danger w-100 py-2.5 fw-bold fs-6 shadow-sm">
+                    <i class="bi bi-shield-lock-fill me-2"></i>Register Administrator Account
+                  </button>
+                </form>
+              </div>
+
+            </div>
+
+            <!-- TAB 3: FORGOT PASSWORD -->
+            <div class="tab-pane" id="pane-forgot">
+              
+              <!-- Step 1: Search & Verify Account -->
+              <div id="forgotStep1">
+                <div class="alert alert-info border-0 shadow-sm py-2.5 mb-3 small">
+                  <i class="bi bi-shield-lock me-1 fw-bold"></i> Select your account role and enter your username, email, phone, or Student/Faculty ID to find your account.
+                </div>
+
+                <form id="forgotVerifyForm" onsubmit="handleForgotPasswordVerifySubmit(event)">
+                  <div class="mb-3">
+                    <label for="forgotRole" class="form-label fw-semibold">1. Account Role *</label>
+                    <select class="form-select border-primary fw-semibold" id="forgotRole" required>
+                      <option value="Student" selected>Student Account</option>
+                      <option value="Faculty">Faculty Account</option>
+                      <option value="HOD">HOD Account</option>
+                      <option value="Administrator">Administrator Account</option>
+                    </select>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="forgotIdentifier" class="form-label fw-semibold">2. Username, Email, Phone, or ID *</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-search"></i></span>
+                      <input type="text" class="form-control" id="forgotIdentifier" placeholder="Enter Username, Email, Phone, or ID" required>
+                    </div>
+                    <div class="form-text small text-muted">e.g. username, student@college.edu, 9876543210, STU101, or FAC201</div>
+                  </div>
+
+                  <button type="submit" class="btn btn-warning w-100 py-2.5 fw-bold fs-6 shadow-sm">
+                    <i class="bi bi-search me-2"></i>Verify & Find Account
+                  </button>
+                </form>
+              </div>
+
+              <!-- Step 2: Security Verification & Reset Password -->
+              <div id="forgotStep2" style="display: none;">
+                <div class="card border-primary mb-3 bg-light p-3 shadow-sm">
+                  <div class="d-flex align-items-center gap-3 mb-2">
+                    <i class="bi bi-person-check-fill text-success fs-3"></i>
+                    <div>
+                      <h6 class="fw-bold mb-0 text-dark" id="verifiedAccountName">Account Verified</h6>
+                      <small class="text-muted" id="verifiedAccountMeta">Role: Student</small>
+                    </div>
+                  </div>
+                  <div class="small text-muted border-top pt-2 mt-1">
+                    <span class="d-block" id="verifiedAccountEmail"><i class="bi bi-envelope me-1"></i> Email: ----</span>
+                    <span class="d-block" id="verifiedAccountMobile"><i class="bi bi-phone me-1"></i> Phone: ----</span>
+                  </div>
+                </div>
+
+                <form id="forgotResetForm" onsubmit="handleForgotPasswordResetSubmit(event)">
+                  <input type="hidden" id="verifiedUsername">
+                  <input type="hidden" id="verifiedRole">
+
+                  <div class="mb-3">
+                    <label for="forgotVerInput" class="form-label fw-semibold">1. Security Verification (Confirm Email or Mobile) *</label>
+                    <input type="text" class="form-control" id="forgotVerInput" placeholder="Re-enter your full email or mobile number" required>
+                    <div class="form-text small text-muted">Enter registered email address or mobile number to confirm identity.</div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label for="forgotNewPassword" class="form-label fw-semibold">2. New Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="forgotNewPassword" placeholder="Create new password" required oninput="checkPasswordStrength(this.value, 'forgotPassStrength')">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('forgotNewPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                      <div id="forgotPassStrength" class="password-strength-container d-none mt-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span class="small text-muted fw-semibold">Strength:</span>
+                          <span class="badge bg-danger strength-badge">Weak</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                          <div class="progress-bar bg-danger strength-bar" role="progressbar" style="width: 25%;"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label for="forgotConfirmPassword" class="form-label fw-semibold">3. Confirm New Password *</label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="forgotConfirmPassword" placeholder="Re-enter new password" required>
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('forgotConfirmPassword', this)" title="Show/Hide Password">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Password Tips Section -->
+                  <div class="password-tips p-3 rounded bg-light border mb-4 small text-muted">
+                    <div class="fw-bold text-dark mb-1"><i class="bi bi-shield-check me-1 text-primary"></i> Password Requirements:</div>
+                    <ul class="mb-0 ps-3 small">
+                      <li>Minimum 6 characters (8+ recommended)</li>
+                      <li>Use uppercase, lowercase, numbers & special characters</li>
+                    </ul>
+                  </div>
+
+                  <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary w-50 py-2 fw-semibold" onclick="resetForgotPasswordStep()">
+                      <i class="bi bi-arrow-left me-1"></i> Back
+                    </button>
+                    <button type="submit" class="btn btn-success w-50 py-2 fw-bold shadow-sm">
+                      <i class="bi bi-key-fill me-1"></i> Reset Password
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Step 3: Success Confirmation -->
+              <div id="forgotStepSuccess" class="text-center py-4" style="display: none;">
+                <div class="mb-3">
+                  <i class="bi bi-check-circle-fill text-success" style="font-size: 3.5rem;"></i>
+                </div>
+                <h5 class="fw-bold text-success mb-2">Password Reset Successful!</h5>
+                <p class="text-dark fw-semibold mb-3">Your password has been updated. You can now log in using your new password.</p>
+                <button type="button" class="btn btn-primary px-4 py-2.5 fw-bold shadow-sm w-100" onclick="showLoginTabWithForgotUsername()">
+                  <i class="bi bi-box-arrow-in-right me-2"></i> Go to Sign In
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="border-top mt-4 pt-3 text-center">
+            <a href="index.html" class="text-muted small text-decoration-none"><i class="bi bi-arrow-left me-1"></i> Back to Public Website</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="js/script.js"></script>
+  <script>
+    function switchAuthTab(tabName) {
+      document.querySelectorAll('#authTab .nav-link').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+
+      if (tabName === 'signin') {
+        document.getElementById('tab-signin').classList.add('active');
+        document.getElementById('pane-signin').classList.add('active');
+      } else if (tabName === 'register') {
+        document.getElementById('tab-register').classList.add('active');
+        document.getElementById('pane-register').classList.add('active');
+      } else if (tabName === 'forgot') {
+        document.getElementById('tab-forgot').classList.add('active');
+        document.getElementById('pane-forgot').classList.add('active');
+      }
+    }
+
+    function toggleRegistrationFields() {
+      const role = document.getElementById('regRole').value;
+      const stBlock = document.getElementById('studentFieldsBlock');
+      if (role === 'Student') {
+        stBlock.style.display = 'block';
+        stBlock.querySelectorAll('input, select, textarea').forEach(el => el.required = true);
+      } else {
+        stBlock.style.display = 'none';
+        stBlock.querySelectorAll('input, select, textarea').forEach(el => el.required = false);
+      }
+    }
+  </script>
+</body>
+</html>

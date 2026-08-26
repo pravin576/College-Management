@@ -1,0 +1,13 @@
+@import url('style.css');
+
+/* Page Specific Styles: Settings Page */
+.settings-option-card {
+  border-radius: var(--erp-radius);
+  border: 1px solid var(--erp-border);
+  padding: 1.25rem;
+  transition: border-color 0.2s ease;
+}
+
+.settings-option-card:hover {
+  border-color: var(--blue-primary);
+}

@@ -1,0 +1,21 @@
+@import url('style.css');
+
+/* Page Specific Styles: Fees Management */
+.fee-receipt-paper {
+  background-color: #ffffff;
+  border: 1px dashed #cbd5e1;
+  padding: 2rem;
+  border-radius: 8px;
+}
+
+.status-pill-paid {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-pill-pending {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}

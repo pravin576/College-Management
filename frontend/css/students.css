@@ -1,0 +1,20 @@
+@import url('style.css');
+
+/* Page Specific Styles: Students Management */
+.student-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--blue-soft);
+  color: var(--blue-primary);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.student-filter-bar {
+  background-color: var(--erp-card-bg);
+  border-radius: var(--erp-radius);
+  padding: 1rem;
+}

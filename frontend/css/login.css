@@ -1,0 +1,26 @@
+@import url('style.css');
+
+/* Page Specific Styles: Login Portal */
+.login-page-body {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.demo-account-badge {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.demo-account-badge:hover {
+  transform: scale(1.02);
+  border-color: var(--blue-primary) !important;
+}

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exam Results - College ERP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/results.css">
+</head>
+<body>
+
+  <div class="erp-wrapper">
+    <aside class="erp-sidebar" id="erpSidebar">
+      <div class="erp-sidebar-header">
+        <div class="brand-logo">  <img src="images/logo.jpg" alt="College ERP Logo"></div>
+        <h1 class="erp-sidebar-brand">College<span>ERP</span></h1>
+      </div>
+
+      <div class="erp-sidebar-menu">
+        <div class="erp-menu-category">MAIN MENU</div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="dashboard.html"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a></div>
+        <div class="erp-nav-item nav-admin-hod-fac"><a class="erp-nav-link" href="students.html"><i class="bi bi-mortarboard-fill"></i> Students</a></div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="faculty.html"><i class="bi bi-person-video3"></i> Faculty</a></div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="hod.html"><i class="bi bi-person-badge-fill"></i> HOD Portal</a></div>
+
+        <div class="erp-menu-category">ACADEMICS & FEES</div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="attendance.html"><i class="bi bi-calendar-check-fill"></i> Attendance</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="fees.html"><i class="bi bi-credit-card-fill"></i> Fees Management</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link active" href="results.html"><i class="bi bi-journal-bookmark-fill"></i> Exam Results</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="timetable.html"><i class="bi bi-clock-fill"></i> Timetable</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="notices.html"><i class="bi bi-megaphone-fill"></i> Notice Board</a></div>
+
+        <div class="erp-menu-category">SYSTEM & ACCOUNT</div>
+        <div class="erp-nav-item nav-admin-hod"><a class="erp-nav-link" href="contact.html"><i class="bi bi-envelope-fill"></i> Contact Inquiries</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="profile.html"><i class="bi bi-person-circle"></i> My Profile</a></div>
+        <div class="erp-nav-item"><a class="erp-nav-link" href="settings.html"><i class="bi bi-gear-fill"></i> Settings</a></div>
+      </div>
+
+      <div class="erp-sidebar-footer">
+        <div class="erp-user-badge mb-2">
+          <div class="erp-user-avatar" id="sidebarAvatar">U</div>
+          <div class="erp-user-meta">
+            <h6 class="erp-user-name" id="sidebarUserName">Loading...</h6>
+            <span class="erp-user-role" id="sidebarUserRole">Role</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger w-100" onclick="logoutUser()"><i class="bi bi-box-arrow-right me-1"></i> Sign Out</button>
+      </div>
+    </aside>
+
+    <main class="erp-main">
+      <header class="erp-header">
+        <div class="d-flex align-items-center gap-3">
+          <button class="erp-toggle-btn" onclick="toggleSidebar()"><i class="bi bi-list fs-4"></i></button>
+          <h2 class="erp-page-title mb-0">Examination Results & Performance</h2>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button class="erp-icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i class="bi bi-moon-stars"></i></button>
+          <a class="btn btn-sm btn-outline-primary fw-bold" href="/api/results/excel-template" download="exam_results_template.xlsx" title="Download Exam Results Excel Template">
+            <i class="bi bi-download me-1"></i> Download Results Template
+          </a>
+          <button class="btn btn-sm btn-outline-success fw-bold action-add-result" onclick="exportResultsFile()" title="Export Exam Results to CSV/Excel">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i> Export Results File
+          </button>
+          <button class="btn btn-sm btn-success fw-bold action-add-result" onclick="openModal('excelResultsImportModal')">
+            <i class="bi bi-file-earmark-excel me-1"></i> Import Results from Excel
+          </button>
+          <button class="btn btn-sm btn-primary fw-bold action-add-result" onclick="openModal('addResultModal')">
+            <i class="bi bi-plus-lg me-1"></i> Enter Exam Result
+          </button>
+        </div>
+      </header>
+
+      <div class="erp-content">
+        <!-- Results Search & Filters -->
+        <div class="card mb-4 shadow-sm">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <input type="text" id="searchResultsInput" class="form-control" placeholder="Search by Student ID, Name, or Subject..." onkeyup="filterResultsTable()">
+              </div>
+              <div class="col-md-6">
+                <select id="filterResultsSem" class="form-select" onchange="filterResultsTable()">
+                  <option value="All">All Semesters</option>
+                  <option value="Semester 1">Semester 1</option>
+                  <option value="Semester 2">Semester 2</option>
+                  <option value="Semester 3">Semester 3</option>
+                  <option value="Semester 4">Semester 4</option>
+                  <option value="Semester 5">Semester 5</option>
+                  <option value="Semester 6">Semester 6</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card shadow-sm">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle">
+                <thead class="bg-light">
+                  <tr>
+                    <th>Student ID</th>
+                    <th>Student Name</th>
+                    <th>Semester</th>
+                    <th>Subject</th>
+                    <th>Internal (30)</th>
+                    <th>End Sem (70)</th>
+                    <th>Total (100)</th>
+                    <th>Percentage</th>
+                    <th>Grade</th>
+                    <th>Status</th>
+                    <th>Marksheet File / Photo</th>
+                    <th class="action-col text-end me-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                  <tr><td colspan="12" class="text-center text-muted py-4">No data available.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Enter Result Modal -->
+  <div class="modal" id="addResultModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="bi bi-journal-bookmark me-2"></i> Enter Student Exam Marks</h5>
+          <button type="button" class="btn-close text-white" onclick="closeModal('addResultModal')">✕</button>
+        </div>
+        <form id="resultModalForm" onsubmit="saveResultForm(event)">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Student ID *</label>
+              <input type="text" id="resStudentId" class="form-control" required placeholder="e.g. STU101">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Student Name *</label>
+              <input type="text" id="resStudentName" class="form-control" required placeholder="Full Name">
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Semester *</label>
+                <select id="resSemester" class="form-select" required>
+                  <option value="Semester 1">Semester 1</option>
+                  <option value="Semester 2">Semester 2</option>
+                  <option value="Semester 3">Semester 3</option>
+                  <option value="Semester 4">Semester 4</option>
+                  <option value="Semester 5">Semester 5</option>
+                  <option value="Semester 6">Semester 6</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Subject *</label>
+                <input type="text" id="resSubject" class="form-control" required placeholder="e.g. Software Engineering">
+              </div>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Internal Marks (Max 30) *</label>
+                <input type="number" id="resInternal" class="form-control" min="0" max="30" step="0.5" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">End Sem Marks (Max 70) *</label>
+                <input type="number" id="resEndSem" class="form-control" min="0" max="70" step="0.5" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Attach Marksheet Document / Photo (Optional)</label>
+              <input type="file" id="resDocumentInput" class="form-control" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">
+              <div class="form-text">Accepted formats: PDF, DOC, DOCX, PNG, JPG photos.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('addResultModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary fw-bold">Save Exam Result</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Excel Exam Results Import Modal -->
+  <div class="modal" id="excelResultsImportModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title"><i class="bi bi-file-earmark-excel-fill me-2"></i> Import Exam Results from Excel (.xlsx)</h5>
+          <button type="button" class="btn-close text-white" onclick="closeModal('excelResultsImportModal')">✕</button>
+        </div>
+        <form id="excelResultsImportForm" onsubmit="submitResultsExcelImport(event)">
+          <div class="modal-body">
+            <div class="alert alert-info py-2 small mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <i class="bi bi-info-circle-fill me-1"></i> Upload an Excel file (<code>.xlsx</code>) containing student exam marks. Total, percentage & grade are computed automatically.
+              </div>
+              <a href="/api/results/excel-template" download="exam_results_template.xlsx" class="btn btn-sm btn-outline-primary fw-bold bg-white">
+                <i class="bi bi-download me-1"></i> Download Results Template
+              </a>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Select Excel File (.xlsx) *</label>
+              <input type="file" id="resultsExcelFileInput" class="form-control" accept=".xlsx" required>
+              <div class="form-text">Headers: <code>Student ID, Student Name, Department, Semester, Subject, Internal Marks (30), End Sem Marks (70)</code></div>
+            </div>
+
+            <!-- Import Results Summary Cards -->
+            <div id="resultsExcelResultContainer" class="d-none mt-3">
+              <div class="card bg-light border-0 shadow-sm mb-3">
+                <div class="card-body py-3">
+                  <h6 class="fw-bold text-dark mb-3"><i class="bi bi-bar-chart-fill me-1"></i> Exam Results Import Execution Summary</h6>
+                  <div class="row g-2 text-center">
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-primary">
+                        <div class="text-muted small">Total Rows</div>
+                        <div class="fs-5 fw-bold text-primary" id="resTotal">0</div>
+                      </div>
+                    </div>
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-success">
+                        <div class="text-muted small">Imported</div>
+                        <div class="fs-5 fw-bold text-success" id="resAdded">0</div>
+                      </div>
+                    </div>
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-warning">
+                        <div class="text-muted small">Updated</div>
+                        <div class="fs-5 fw-bold text-warning" id="resDup">0</div>
+                      </div>
+                    </div>
+                    <div class="col-3">
+                      <div class="p-2 bg-white rounded border border-danger">
+                        <div class="text-muted small">Failed / Invalid</div>
+                        <div class="fs-5 fw-bold text-danger" id="resFailed">0</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Error Log Section -->
+              <div id="resultsExcelErrorSection" class="d-none">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="fw-bold text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i> Failed Row Failure Log</h6>
+                  <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="downloadResultsErrorReport()">
+                    <i class="bi bi-download me-1"></i> Download Error Report
+                  </button>
+                </div>
+                <div class="table-responsive border rounded bg-white overflow-auto" style="max-height: 200px;">
+                  <table class="table table-sm table-hover mb-0 small">
+                    <thead class="bg-light">
+                      <tr>
+                        <th>Excel Row #</th>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Failure Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody id="resultsExcelErrorTableBody">
+                      <tr><td colspan="4" class="text-center text-muted">No errors found.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('excelResultsImportModal')">Close</button>
+            <button type="submit" class="btn btn-success fw-bold" id="btnUploadResultsExcel">
+              <i class="bi bi-cloud-upload me-1"></i> Upload & Import Exam Results
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/script.js"></script>
+  <script src="js/results.js"></script>
+</body>
+</html>

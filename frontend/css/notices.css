@@ -1,0 +1,23 @@
+@import url('style.css');
+
+/* Page Specific Styles: Campus Notice Board */
+.notice-card {
+  border-left: 4px solid var(--erp-primary);
+  transition: transform 0.2s ease;
+}
+
+.notice-card:hover {
+  transform: translateX(4px);
+}
+
+.notice-card.priority-High {
+  border-left-color: #ef4444;
+}
+
+.notice-card.priority-Medium {
+  border-left-color: #f59e0b;
+}
+
+.notice-card.priority-Low {
+  border-left-color: #06b6d4;
+}

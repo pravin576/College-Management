@@ -1,0 +1,6 @@
+{
+  "name": "College ERP Management System",
+  "description": "College ERP Management System - A complete, modern and professional college management platform with students, faculty, attendance, fees, results, timetable, notices, and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

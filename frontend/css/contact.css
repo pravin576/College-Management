@@ -1,0 +1,260 @@
+@import url('style.css');
+
+/* =========================================
+   CONTACT PAGE
+========================================= */
+
+.contact-page {
+    width: 100%;
+    max-width: 1000px;
+    margin: 30px auto;
+    padding: 20px;
+}
+
+/* =========================================
+   CONTACT HEADER
+========================================= */
+
+.contact-hero-header {
+    background: #ffffff;
+    color: #1f2937;
+    padding: 20px 25px;
+    border: 1px solid #e1e5ea;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.contact-hero-header h1 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 600;
+    color: #123b70;
+}
+
+.contact-hero-header p {
+    margin: 0;
+    color: #666666;
+    font-size: 15px;
+}
+
+/* =========================================
+   CONTACT FORM BOX
+========================================= */
+
+.contact-form-box {
+    background: #ffffff;
+    border: 1px solid #e1e5ea;
+    border-radius: 6px;
+    padding: 25px;
+    margin-bottom: 25px;
+}
+
+/* =========================================
+   FORM GROUP
+========================================= */
+
+.contact-form-group {
+    margin-bottom: 18px;
+}
+
+.contact-form-group label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #222222;
+}
+
+.contact-form-group input,
+.contact-form-group textarea,
+.contact-form-group select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 13px;
+    border: 1px solid #cfd6df;
+    border-radius: 5px;
+    background: #ffffff;
+    color: #222222;
+    font-size: 15px;
+    outline: none;
+}
+
+.contact-form-group input:focus,
+.contact-form-group textarea:focus,
+.contact-form-group select:focus {
+    border-color: #1557a6;
+    box-shadow: 0 0 0 2px rgba(21, 87, 166, 0.08);
+}
+
+.contact-form-group textarea {
+    min-height: 130px;
+    resize: vertical;
+}
+
+/* =========================================
+   TWO COLUMN FORM
+========================================= */
+
+.contact-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* =========================================
+   SUBMIT BUTTON
+========================================= */
+
+.contact-submit-btn {
+    width: 100%;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 5px;
+    background: #1557a6;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.contact-submit-btn:hover {
+    background: #104583;
+}
+
+/* =========================================
+   SUCCESS / ERROR MESSAGE
+========================================= */
+
+.contact-message {
+    display: none;
+    margin-top: 15px;
+    padding: 12px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.contact-success {
+    background: #eaf7ee;
+    color: #176b3a;
+    border: 1px solid #b9e3c7;
+}
+
+.contact-error {
+    background: #fdecec;
+    color: #a12626;
+    border: 1px solid #efbcbc;
+}
+
+/* =========================================
+   COLLEGE CONTACT INFORMATION
+========================================= */
+
+.college-contact-info {
+    background: #f6f8fa;
+    border: 1px solid #e1e5ea;
+    border-left: 4px solid #1557a6;
+    padding: 20px;
+    border-radius: 5px;
+}
+
+.college-contact-info h3 {
+    margin: 0 0 12px;
+    color: #123b70;
+    font-size: 20px;
+}
+
+.college-contact-info p {
+    margin: 7px 0;
+    color: #555555;
+    font-size: 14px;
+}
+
+/* =========================================
+   ADMIN CONTACT INBOX TABLE
+========================================= */
+
+.contact-inbox-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+}
+
+.contact-inbox-table th {
+    padding: 12px;
+    background: #f1f4f7;
+    color: #333333;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: left;
+    border-bottom: 1px solid #d9dee5;
+}
+
+.contact-inbox-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    color: #333333;
+    font-size: 14px;
+}
+
+.contact-inbox-table tr:hover {
+    background: #f8fafc;
+}
+
+/* =========================================
+   MOBILE RESPONSIVE
+========================================= */
+
+@media (max-width: 700px) {
+
+    .contact-page {
+        margin: 15px auto;
+        padding: 10px;
+    }
+
+    .contact-hero-header {
+        padding: 18px;
+    }
+
+    .contact-hero-header h1 {
+        font-size: 24px;
+    }
+
+    .contact-form-box {
+        padding: 18px;
+    }
+
+    .contact-form-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .contact-submit-btn {
+        font-size: 15px;
+    }
+}
+
+/* =========================================
+   SMALL MOBILE
+========================================= */
+
+@media (max-width: 450px) {
+
+    .contact-page {
+        padding: 5px;
+    }
+
+    .contact-hero-header h1 {
+        font-size: 21px;
+    }
+
+    .contact-form-box {
+        padding: 15px;
+    }
+
+    .contact-form-group input,
+    .contact-form-group textarea,
+    .contact-form-group select {
+        font-size: 14px;
+    }
+}

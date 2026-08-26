@@ -1,0 +1,24 @@
+@import url('style.css');
+
+/* Page Specific Styles: Faculty Directory */
+.faculty-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: var(--erp-radius);
+}
+
+.faculty-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.faculty-avatar-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 700;
+}

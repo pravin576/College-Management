@@ -92,7 +92,9 @@ function toggleSidebar() {
 
 /**
  * Centralized Asynchronous API Fetch Engine
- * Resolves relative URLs to http://localhost:8000 and returns structured backend errors.
+ * Resolves relative URLs to the correct backend base URL.
+ * - On the live deployment: uses window.location.origin (same domain)
+ * - When opened as a local file (file://): falls back to http://localhost:8000
  */
 async function fetchAPI(url, options = {}) {
   const token = getSessionToken();
@@ -109,9 +111,13 @@ async function fetchAPI(url, options = {}) {
 
   let targetUrl = url;
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    if (window.location.protocol === "file:" || (window.location.origin && !window.location.origin.includes(":8000"))) {
-      const cleanPath = url.startsWith("/") ? url : "/" + url;
+    const cleanPath = url.startsWith("/") ? url : "/" + url;
+    if (window.location.protocol === "file:") {
+      // Opened directly as a local HTML file — target localhost dev server
       targetUrl = `http://localhost:8000${cleanPath}`;
+    } else {
+      // Served via HTTP(S) — use the same origin (works for both localhost and Render)
+      targetUrl = `${window.location.origin}${cleanPath}`;
     }
   }
 
@@ -145,9 +151,12 @@ async function fetchAPI(url, options = {}) {
     return { success: true };
   } catch (err) {
     console.error("API Connection Error:", err);
+    const isLocal = window.location.protocol === "file:" || window.location.hostname === "localhost";
     return {
       success: false,
-      message: "Backend connection error. Please ensure Python server is running (`python app.py` at http://localhost:8000)."
+      message: isLocal
+        ? "Backend connection error. Please ensure Python server is running (`python app.py` at http://localhost:8000)."
+        : "Backend connection error. The server may be unavailable. Please try again later."
     };
   }
 }

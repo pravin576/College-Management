@@ -31,8 +31,8 @@
             <p class="text-muted small">Sign in to your account or register a new student/user profile</p>
           </div>
 
-          <!-- Tabs Navigation -->
-          <ul class="nav nav-pills nav-justified mb-4" id="authTab" role="tablist">
+          <!-- Tabs Navigation (Hidden as per requirement) -->
+          <ul class="nav nav-pills nav-justified mb-4 d-none" id="authTab" role="tablist">
             <li class="nav-item">
               <button class="nav-link active fw-bold" id="tab-signin" onclick="switchAuthTab('signin')"><i class="bi bi-box-arrow-in-right me-1"></i> Sign In</button>
             </li>
@@ -87,12 +87,28 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold fs-6 shadow-sm"><i class="bi bi-box-arrow-in-right me-2"></i>Sign In to Dashboard</button>
+
+                <!-- Options moved below Sign In button -->
+                <div class="mt-4 pt-3 border-top text-center d-flex flex-column gap-3">
+                  <a href="#" class="text-decoration-none fw-bold text-dark" onclick="switchAuthTab('register'); return false;">
+                    <i class="bi bi-person-plus-fill text-primary me-1"></i> Register Account
+                  </a>
+                  <a href="#" class="text-decoration-none fw-bold text-dark" onclick="switchAuthTab('forgot'); return false;">
+                    <i class="bi bi-key-fill text-primary me-1"></i> Forgot Password
+                  </a>
+                </div>
               </form>
             </div>
 
             <!-- TAB 2: REGISTER -->
             <div class="tab-pane" id="pane-register">
               
+              <div class="mb-4 text-start">
+                <a href="#" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="switchAuthTab('signin'); return false;">
+                  <i class="bi bi-arrow-left me-1"></i> Back to Sign In
+                </a>
+              </div>
+
               <!-- Registration Success Card (Hidden by default) -->
               <div id="registrationSuccessBox" class="card border-success shadow-sm p-4 bg-light d-none text-center mb-4">
                 <div class="mb-3">
@@ -492,6 +508,12 @@
             <!-- TAB 3: FORGOT PASSWORD -->
             <div class="tab-pane" id="pane-forgot">
               
+              <div class="mb-4 text-start">
+                <a href="#" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="switchAuthTab('signin'); return false;">
+                  <i class="bi bi-arrow-left me-1"></i> Back to Sign In
+                </a>
+              </div>
+
               <!-- Step 1: Search & Verify Account -->
               <div id="forgotStep1">
                 <div class="alert alert-info border-0 shadow-sm py-2.5 mb-3 small">

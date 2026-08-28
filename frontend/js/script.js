@@ -114,7 +114,7 @@ async function fetchAPI(url, options = {}) {
     const cleanPath = url.startsWith("/") ? url : "/" + url;
     if (window.location.protocol === "file:") {
       // Opened directly as a local HTML file — target localhost dev server
-      targetUrl = `http://localhost:8000${cleanPath}`;
+      targetUrl = `http://127.0.0.1:8000${cleanPath}`;
     } else {
       // Served via HTTP(S) — use the same origin (works for both localhost and Render)
       targetUrl = `${window.location.origin}${cleanPath}`;

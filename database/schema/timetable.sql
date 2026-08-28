@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS timetable (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    department VARCHAR(255) NOT NULL,
+    semester VARCHAR(50) NOT NULL,
+    division VARCHAR(10) NOT NULL,
+    day VARCHAR(50) NOT NULL,
+    time VARCHAR(100) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    faculty VARCHAR(255) NOT NULL,
+    room VARCHAR(100) NOT NULL
+);

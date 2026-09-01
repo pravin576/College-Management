@@ -6,107 +6,119 @@ import time
 import os
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user
+from auth.permissions import get_current_user, is_admin, is_hod
 
 def handle_get_timetable(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+
+    role = user.get('role')
+    user_dept = user.get('department')
+
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
-    if role in ["Student", "Faculty", "HOD"]:
-        cursor.execute("SELECT * FROM timetable WHERE department = %s", (user_dept,))
-    else: # Admin
-        dept_filter = query_params.get("department", [None])[0]
-        if dept_filter and dept_filter != "All":
-            cursor.execute("SELECT * FROM timetable WHERE department = %s", (dept_filter,))
+    try:
+        if is_admin(user):
+            dept_filter = query_params.get("department", [None])[0]
+            if dept_filter and dept_filter != "All":
+                cursor.execute("SELECT * FROM timetable WHERE department = %s ORDER BY day, time", (dept_filter,))
+            else:
+                cursor.execute("SELECT * FROM timetable ORDER BY department, day, time")
         else:
-            cursor.execute("SELECT * FROM timetable")
-    recs = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    handler_instance._send_json({"success": True, "timetable": recs})
-    return
-
-#      Notices Endpoint
+            cursor.execute("SELECT * FROM timetable WHERE department = %s ORDER BY day, time", (user_dept,))
+        recs = [dict(r) for r in cursor.fetchall()]
+        return handler_instance._send_json({"success": True, "timetable": recs})
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/timetable', handle_get_timetable)
 
 def handle_post_timetable(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user or not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Admin and HOD can manage timetable"}, 403)
+
+    role = user.get('role')
+    user_dept = user.get('department')
+    tt_id = body.get("id")
+    dept = user_dept if is_hod(user) else (body.get("department") or "Computer Engineering").strip()
+    sem = (body.get("semester") or "Semester 1").strip()
+    div = (body.get("division") or "A").strip()
+    day = (body.get("day") or "Monday").strip()
+    tt_time = (body.get("time") or "10:00 AM - 11:00 AM").strip()
+    subject = (body.get("subject") or "").strip()
+    faculty = (body.get("faculty") or "").strip()
+    room = (body.get("room") or "Classroom 1").strip()
+
+    if not subject:
+        return handler_instance._send_json({"success": False, "message": "Subject is required for timetable slot"}, 400)
+
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
-    if role not in ["Administrator", "Admin", "HOD"]:
+    try:
+        if tt_id:
+            cursor.execute(
+                "UPDATE timetable SET department=%s, semester=%s, division=%s, day=%s, time=%s, subject=%s, faculty=%s, room=%s WHERE id=%s",
+                (dept, sem, div, day, tt_time, subject, faculty, room, tt_id)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO timetable (department, semester, division, day, time, subject, faculty, room) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (dept, sem, div, day, tt_time, subject, faculty, room)
+            )
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Timetable entry saved successfully!"})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
         conn.close()
-        handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
-        return
-    tt_id = body.get("id")
-    dept = user_dept if role == "HOD" else body.get("department", "Computer Science")
-    sem = body.get("semester", "Semester 1")
-    div = body.get("division", "A")
-    day = body.get("day", "Monday")
-    tt_time = body.get("time", "10:00 AM - 11:00 AM")
-    subject = body.get("subject", "")
-    faculty = body.get("faculty", "")
-    room = body.get("room", "Lab 1")
-
-    if tt_id:
-        cursor.execute(
-            "UPDATE timetable SET department=%s, semester=%s, division=%s, day=%s, time=%s, subject=%s, faculty=%s, room=%s WHERE id=%s",
-            (dept, sem, div, day, tt_time, subject, faculty, room, tt_id)
-        )
-    else:
-        cursor.execute(
-            "INSERT INTO timetable (department, semester, division, day, time, subject, faculty, room) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (dept, sem, div, day, tt_time, subject, faculty, room)
-        )
-    conn.commit()
-    conn.close()
-    handler_instance._send_json({"success": True, "message": "Timetable entry saved successfully!"})
-    return
-
-#     . Notices CRUD
 
 register_route('POST', '/api/timetable', handle_post_timetable)
 
 def handle_delete_timetable(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user or not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
+
+    role = user.get('role')
+    user_dept = user.get('department')
     item_id = query_params.get("id", [None])[0] or body.get("id")
+
     if not item_id:
-        if conn: conn.close()
-        handler_instance._send_json({"success": False, "message": "ID required"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": "Timetable slot ID required"}, 400)
 
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
 
-    if role not in ["Administrator", "Admin", "HOD"]:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
-        return
-    if role == "HOD":
-        cursor.execute("SELECT department FROM timetable WHERE id = %s", (item_id,))
+    try:
+        cursor.execute("SELECT * FROM timetable WHERE id = %s", (item_id,))
         row = cursor.fetchone()
-        if not row or row[0] != user_dept:
-            conn.close()
-            handler_instance._send_json({"success": False, "message": "Cannot delete timetable slot outside your department"}, 403)
-            return
-    cursor.execute("DELETE FROM timetable WHERE id = %s", (item_id,))
+        if not row:
+            return handler_instance._send_json({"success": False, "message": "Timetable entry not found"}, 404)
 
+        if is_hod(user) and row.get("department") != user_dept:
+            return handler_instance._send_json({"success": False, "message": "Cannot delete timetable slot outside your department"}, 403)
+
+        cursor.execute("DELETE FROM timetable WHERE id = %s", (item_id,))
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Timetable entry deleted successfully"})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('DELETE', '/api/timetable', handle_delete_timetable)
-

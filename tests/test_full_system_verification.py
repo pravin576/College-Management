@@ -7,9 +7,13 @@ import time
 import urllib.parse
 import threading
 
-# Add parent directory to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
-from app import ERPRequestHandler, init_db, create_results_template_xlsx, create_student_template_xlsx, create_attendance_template_xlsx, SESSIONS, hash_password, get_db_connection
+# Add backend directory to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
+from server import ERPRequestHandler, init_db
+from config.database import get_db_connection
+from auth.permissions import SESSIONS
+from auth.utils import hash_password
+from core.excel_utils import create_results_template_xlsx, create_student_template_xlsx, create_attendance_template_xlsx
 
 import socketserver
 
@@ -59,16 +63,32 @@ def run_tests():
 
     # 1. Ensure Admin Account exists in DB with known password
     db_conn = get_db_connection()
-    c = db_conn.cursor()
+    c = db_conn.cursor(dictionary=True)
     c.execute("SELECT id FROM users WHERE username = 'admin'")
     if not c.fetchone():
         c.execute(
-            "INSERT INTO users (username, password, role, name, email, department, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO users (username, password, role, name, email, department, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, 'Active')",
             ("admin", hash_password("admin123"), "Administrator", "System Administrator", "admin@college.edu", "Administration", time.strftime('%Y-%m-%d %H:%M:%S'))
         )
     else:
-        c.execute("UPDATE users SET password = ? WHERE username = 'admin'", (hash_password("admin123"),))
+        c.execute("UPDATE users SET password = %s, status = 'Active' WHERE username = 'admin'", (hash_password("admin123"),))
+    
+    # Ensure students STU1001 & STU1002 exist for Excel template test
+    for s_id, r_no, s_name in [("STU1001", "1001", "Rahul Patil"), ("STU1002", "1002", "Priya Shinde"), ("STU1003", "1003", "Priya Patil")]:
+        c.execute("SELECT id FROM students WHERE id = %s", (s_id,))
+        if not c.fetchone():
+            c.execute(
+                """INSERT INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
+                   VALUES (%s, %s, %s, %s, %s, 'Male', '2005-01-01', 'Computer Engineering', 'Second Year', 'Semester 3', 'A', '2026', 'Pune', 'Active')""",
+                (s_id, r_no, s_name, f"{s_id.lower()}@college.edu", "9876543210")
+            )
+            c.execute(
+                "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status) VALUES (%s, %s, 'Student', %s, %s, 'Computer Engineering', %s, '9876543210', %s, 'Active')",
+                (s_id.lower(), hash_password("student123"), s_name, f"{s_id.lower()}@college.edu", s_id, time.strftime('%Y-%m-%d %H:%M:%S'))
+            )
+    
     db_conn.commit()
+    c.close()
     db_conn.close()
 
     # 2. Test Admin Login
@@ -225,7 +245,7 @@ def run_tests():
 if __name__ == "__main__":
     t = threading.Thread(target=start_server, daemon=True)
     t.start()
-    time.sleep(0.8)
+    time.sleep(1.0)
     try:
         run_tests()
     finally:

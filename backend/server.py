@@ -4,17 +4,16 @@ import json
 import os
 import urllib.parse
 import datetime
+import decimal
 
 try:
     from dotenv import load_dotenv
-    # Try to load .env, otherwise fallback to .env.example
     env_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".env"))
     if not os.path.exists(env_path):
         env_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".env.example"))
     load_dotenv(env_path)
 except ImportError:
-    print("Notice: python-dotenv not installed. Falling back to default environment variables.")
-    print("To install, run: pip install -r requirements.txt")
+    pass
 
 from config.database import init_db
 from router import handle_request
@@ -25,8 +24,12 @@ FRONTEND_DIR = os.path.normpath(os.path.join(CUR_FILE_DIR, "..", "frontend"))
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, (datetime.datetime, datetime.date)):
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
             return obj.isoformat()
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+        if isinstance(obj, bytes):
+            return obj.decode('utf-8', errors='ignore')
         return super().default(obj)
 
 class ERPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -37,16 +40,21 @@ class ERPRequestHandler(http.server.SimpleHTTPRequestHandler):
             body = json.dumps({"success": False, "message": "JSON Encode Error", "error": str(e)}).encode("utf-8")
             status_code = 500
             
-        self.send_response(status_code)
-        self.send_header("Content-type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Session-Token")
-        if headers:
-            for k, v in headers.items():
-                self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status_code)
+            self.send_header("Content-type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Session-Token")
+            if headers:
+                for k, v in headers.items():
+                    self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+        except Exception:
+            pass
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -60,8 +68,16 @@ class ERPRequestHandler(http.server.SimpleHTTPRequestHandler):
         if not clean_path:
             clean_path = "index.html"
             
+        # Secure Path Normalization (Prevent directory traversal)
+        clean_path = clean_path.replace("\\", "/")
+        if ".." in clean_path.split("/"):
+            self.send_response(403)
+            self.end_headers()
+            return
+
         full_path = os.path.normpath(os.path.join(FRONTEND_DIR, clean_path))
-        if not full_path.startswith(os.path.normpath(FRONTEND_DIR) + os.sep) and full_path != os.path.normpath(FRONTEND_DIR):
+        frontend_norm = os.path.normpath(FRONTEND_DIR)
+        if not full_path.startswith(frontend_norm + os.sep) and full_path != frontend_norm:
             self.send_response(403)
             self.end_headers()
             return
@@ -87,7 +103,8 @@ class ERPRequestHandler(http.server.SimpleHTTPRequestHandler):
             ".ico": "image/x-icon",
             ".woff": "font/woff",
             ".woff2": "font/woff2",
-            ".ttf": "font/ttf"
+            ".ttf": "font/ttf",
+            ".pdf": "application/pdf"
         }
         content_type = content_types.get(ext, "application/octet-stream")
 
@@ -99,19 +116,22 @@ class ERPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()
             self.wfile.write(content)
-        except Exception as e:
-            self.send_response(500)
-            self.end_headers()
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+        except Exception:
+            try:
+                self.send_response(500)
+                self.end_headers()
+            except Exception:
+                pass
 
     def _safe_handle(self, method):
         try:
             from router import handle_request
             handle_request(method, self)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             try:
-                self._send_json({"success": False, "message": "Internal Server Error", "error": str(e)}, 500)
+                self._send_json({"success": False, "message": "Internal Server Error"}, 500)
             except:
                 pass
 

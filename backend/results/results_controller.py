@@ -4,22 +4,18 @@ import datetime
 import json
 import time
 import os
+import re
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user
+from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student
 from core.excel_utils import create_results_template_xlsx, parse_xlsx_bytes
 
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOADS_DIR = os.path.normpath(os.path.join(CUR_DIR, "..", "..", "frontend", "uploads"))
+if not os.path.exists(UPLOADS_DIR):
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 def handle_get_results_excel_template(handler_instance, query_params, body):
-    user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
-
     xlsx_bytes = create_results_template_xlsx()
     handler_instance.send_response(200)
     handler_instance.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -28,123 +24,111 @@ def handle_get_results_excel_template(handler_instance, query_params, body):
     handler_instance.send_header("Access-Control-Allow-Origin", "*")
     handler_instance.end_headers()
     handler_instance.wfile.write(xlsx_bytes)
-    return
-
-#     otected API Endpoints - Authorization Check
-#      = self.get_current_user()
-#     ot user:
-    handler_instance._send_json({"success": False, "message": "Authentication required"}, 401)
-    return
-
-#      = user["role"]
-    _dept = user.get("department", "")
-    ent_id = user.get("student_id", "")
-    lty_id = user.get("faculty_id", "")
-
-#      = get_db_connection()
-#     .row_factory = 
-#     or = # conn.cursor()
-
-#      Students Endpoint
 
 register_route('GET', '/api/results/excel-template', handle_get_results_excel_template)
 
 def handle_get_results(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+
+    role = user.get('role')
+    user_dept = user.get('department')
+    student_id = user.get('student_id')
+
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
-    if role == "Student":
-        cursor.execute("SELECT * FROM results WHERE student_id = %s", (student_id,))
-    elif role in ["HOD", "Faculty"]:
-        cursor.execute("SELECT r.* FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s", (user_dept,))
-    else: # Admin
-        dept_filter = query_params.get("department", [None])[0]
-        if dept_filter and dept_filter != "All":
-            cursor.execute("SELECT r.* FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s", (dept_filter,))
-        else:
-            cursor.execute("SELECT * FROM results")
-    recs = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    handler_instance._send_json({"success": True, "results": recs})
-    return
-
+    try:
+        if role == "Student":
+            cursor.execute("SELECT * FROM results WHERE student_id = %s ORDER BY semester, subject", (student_id,))
+        elif role in ["HOD", "Faculty"]:
+            cursor.execute("SELECT r.* FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s ORDER BY r.student_id, r.semester", (user_dept,))
+        else: # Admin
+            dept_filter = query_params.get("department", [None])[0]
+            if dept_filter and dept_filter != "All":
+                cursor.execute("SELECT r.* FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s ORDER BY r.student_id, r.semester", (dept_filter,))
+            else:
+                cursor.execute("SELECT * FROM results ORDER BY student_id, semester")
+        recs = [dict(r) for r in cursor.fetchall()]
+        return handler_instance._send_json({"success": True, "results": recs})
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/results', handle_get_results)
 
 def handle_get_results_export(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+
+    role = user.get('role')
+    user_dept = user.get('department')
+    student_id = user.get('student_id')
+
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
     dept_f = query_params.get("department", [None])[0]
     sem_f = query_params.get("semester", [None])[0]
 
-    sql = "SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE 1=1"
-    params = []
-    if role in ["HOD", "Faculty"]:
-        sql += " AND (s.department = %s OR s.department IS NULL)"
-        params.append(user_dept)
-    elif dept_f and dept_f != "All":
-        sql += " AND s.department = %s"
-        params.append(dept_f)
+    try:
+        sql = "SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE 1=1"
+        params = []
+        if role == "Student":
+            sql += " AND r.student_id = %s"
+            params.append(student_id)
+        elif role in ["HOD", "Faculty"]:
+            sql += " AND (s.department = %s OR s.department IS NULL)"
+            params.append(user_dept)
+        elif dept_f and dept_f != "All":
+            sql += " AND s.department = %s"
+            params.append(dept_f)
 
-    if sem_f and sem_f != "All":
-        sql += " AND r.semester = %s"
-        params.append(sem_f)
+        if sem_f and sem_f != "All":
+            sql += " AND r.semester = %s"
+            params.append(sem_f)
 
-    cursor.execute(sql, tuple(params))
-    recs = cursor.fetchall()
-    conn.close()
+        cursor.execute(sql, tuple(params))
+        recs = cursor.fetchall()
 
-    lines = ["Student ID,Student Name,Department,Semester,Subject,Internal Marks,End Sem Marks,Total Marks,Percentage,Grade,Status,Document File\n"]
-    for r in recs:
-        rd = dict(r)
-        lines.append(f'"{rd.get("student_id")}","{rd.get("student_name")}","{rd.get("department","")}","{rd.get("semester")}","{rd.get("subject")}","{rd.get("internal_marks")}","{rd.get("end_sem_marks")}","{rd.get("total_marks")}","{rd.get("percentage")}%","{rd.get("grade")}","{rd.get("status")}","{rd.get("document","")}"\n')
+        lines = ["Student ID,Student Name,Department,Semester,Subject,Internal Marks,End Sem Marks,Total Marks,Percentage,Grade,Status,Document File\n"]
+        for r in recs:
+            rd = dict(r)
+            lines.append(f'"{rd.get("student_id")}","{rd.get("student_name")}","{rd.get("department","")}","{rd.get("semester")}","{rd.get("subject")}","{rd.get("internal_marks")}","{rd.get("end_sem_marks")}","{rd.get("total_marks")}","{rd.get("percentage")}%","{rd.get("grade")}","{rd.get("status")}","{rd.get("document","")}"\n')
 
-    filename = f"exam_results_{int(time.time())}.csv"
-    handler_instance.send_response(200)
-    handler_instance.send_header("Content-type", "text/csv; charset=utf-8")
-    handler_instance.send_header("Content-Disposition", f'attachment; filename="{filename}"')
-    handler_instance.send_header("Access-Control-Allow-Origin", "*")
-    handler_instance.end_headers()
-    handler_instance.wfile.write("".join(lines).encode("utf-8"))
-    return
-
-#      Fees Endpoint
+        filename = f"exam_results_{int(time.time())}.csv"
+        handler_instance.send_response(200)
+        handler_instance.send_header("Content-type", "text/csv; charset=utf-8")
+        handler_instance.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        handler_instance.send_header("Access-Control-Allow-Origin", "*")
+        handler_instance.end_headers()
+        handler_instance.wfile.write("".join(lines).encode("utf-8"))
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/results/export', handle_get_results_export)
 
 def handle_post_results_import_excel(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+
+    role = user.get('role')
+    user_dept = user.get('department')
 
     if role == "Student":
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Students are not permitted to import exam results"}, 403)
-        return
+        return handler_instance._send_json({"success": False, "message": "Students are not permitted to import exam results"}, 403)
 
     file_b64 = body.get("file_base64") or body.get("file")
     if not file_b64:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "No Excel file data provided"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": "No Excel file data provided"}, 400)
 
     if "," in file_b64:
         file_b64 = file_b64.split(",", 1)[1]
@@ -153,14 +137,15 @@ def handle_post_results_import_excel(handler_instance, query_params, body):
         raw_bytes = base64.b64decode(file_b64)
         rows = parse_xlsx_bytes(raw_bytes)
     except Exception as ex:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": f"Failed to parse Excel file: {ex}"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": f"Failed to parse Excel file: {ex}"}, 400)
 
     if not rows or len(rows) <= 1:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Excel file contains no data rows"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": "Excel file contains no data rows"}, 400)
+
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
 
     header = [str(h).lower().replace(' ', '').replace('_', '') for h in rows[0]]
     data_rows = rows[1:]
@@ -186,113 +171,117 @@ def handle_post_results_import_excel(handler_instance, query_params, body):
     fail_cnt = 0
     errors = []
 
-    for r_num, r in enumerate(data_rows, start=2):
-        def get_val(idx, default=""):
-            return r[idx].strip() if idx >= 0 and idx < len(r) else default
+    try:
+        for r_num, r in enumerate(data_rows, start=2):
+            def get_val(idx, default=""):
+                return r[idx].strip() if idx >= 0 and idx < len(r) else default
 
-        stu_id = get_val(idx_id)
-        name = get_val(idx_name)
-        dept = get_val(idx_dept)
-        sem = get_val(idx_sem, "Semester 1")
-        subject = get_val(idx_subject)
-        internal_str = get_val(idx_internal, "0")
-        end_sem_str = get_val(idx_endsem, "0")
+            stu_id = get_val(idx_id)
+            name = get_val(idx_name)
+            dept = get_val(idx_dept)
+            sem = get_val(idx_sem, "Semester 1")
+            subject = get_val(idx_subject)
+            internal_str = get_val(idx_internal, "0")
+            end_sem_str = get_val(idx_endsem, "0")
 
-        if not stu_id or not subject:
-            fail_cnt += 1
-            errors.append({"row": r_num, "student_id": stu_id or "N/A", "name": name or "N/A", "reason": "Missing required field (Student ID or Subject)"})
-            continue
+            if not stu_id or not subject:
+                fail_cnt += 1
+                errors.append({"row": r_num, "student_id": stu_id or "N/A", "name": name or "N/A", "reason": "Missing required field (Student ID or Subject)"})
+                continue
 
-        try:
-            internal = float(internal_str)
-            end_sem = float(end_sem_str)
-        except ValueError:
-            fail_cnt += 1
-            errors.append({"row": r_num, "student_id": stu_id, "name": name or "N/A", "reason": f"Invalid marks values: internal='{internal_str}', end_sem='{end_sem_str}'"})
-            continue
+            try:
+                internal = float(internal_str)
+                end_sem = float(end_sem_str)
+            except ValueError:
+                fail_cnt += 1
+                errors.append({"row": r_num, "student_id": stu_id, "name": name or "N/A", "reason": f"Invalid marks values: internal='{internal_str}', end_sem='{end_sem_str}'"})
+                continue
 
-        cursor.execute("SELECT id, name, department FROM students WHERE id = %s", (stu_id,))
-        stu_row = cursor.fetchone()
-        target_name = name if name else (stu_row["name"] if stu_row else "Student")
-        target_dept = dept if dept else (stu_row["department"] if stu_row else user_dept)
+            cursor.execute("SELECT id, name, department FROM students WHERE id = %s", (stu_id,))
+            stu_row = cursor.fetchone()
+            if not stu_row:
+                fail_cnt += 1
+                errors.append({"row": r_num, "student_id": stu_id or "N/A", "name": name or "N/A", "reason": f"Student ID '{stu_id}' does not exist in student database"})
+                continue
 
-        if role in ["HOD", "Faculty"] and target_dept != user_dept:
-            fail_cnt += 1
-            errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Unauthorized department '{target_dept}'. Restricted to '{user_dept}'."})
-            continue
+            target_name = name if name else (stu_row["name"] if stu_row else "Student")
+            target_dept = dept if dept else (stu_row["department"] if stu_row else user_dept)
 
-        res_key = (stu_id, subject, sem)
-        if res_key in seen_results:
-            dup_cnt += 1
-            errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Duplicate result for '{stu_id}', subject '{subject}' on '{sem}' inside Excel"})
-            continue
+            if role in ["HOD", "Faculty"] and target_dept != user_dept:
+                fail_cnt += 1
+                errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Unauthorized department '{target_dept}'. Restricted to '{user_dept}'."})
+                continue
 
-        seen_results.add(res_key)
+            res_key = (stu_id, subject, sem)
+            if res_key in seen_results:
+                dup_cnt += 1
+                errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Duplicate result for '{stu_id}', subject '{subject}' on '{sem}' inside Excel"})
+                continue
 
-        total = internal + end_sem
-        percentage = round((total / 100.0) * 100.0, 1)
-        grade = "A+" if percentage >= 85 else "A" if percentage >= 75 else "B" if percentage >= 60 else "C" if percentage >= 50 else "F"
-        res_status = "Pass" if percentage >= 40 and end_sem >= 28 else "Fail"
+            seen_results.add(res_key)
 
-        cursor.execute("SELECT id FROM results WHERE student_id = %s AND subject = %s AND semester = %s", (stu_id, subject, sem))
-        existing = cursor.fetchone()
-        if existing:
-            cursor.execute(
-                """UPDATE results SET student_name=%s, internal_marks=%s, end_sem_marks=%s, total_marks=%s, percentage=%s, grade=%s, status=%s
-                   WHERE id=%s""",
-                (target_name, internal, end_sem, total, percentage, grade, res_status, existing["id"])
-            )
-            dup_cnt += 1
-        else:
-            cursor.execute(
-                """INSERT INTO results (student_id, student_name, subject, semester, internal_marks, end_sem_marks, total_marks, percentage, grade, status, document)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '')""",
-                (stu_id, target_name, subject, sem, internal, end_sem, total, percentage, grade, res_status)
-            )
-            added_cnt += 1
+            total = internal + end_sem
+            percentage = round((total / 100.0) * 100.0, 1)
+            grade = "A+" if percentage >= 85 else "A" if percentage >= 75 else "B" if percentage >= 60 else "C" if percentage >= 50 else "F"
+            res_status = "Pass" if percentage >= 40 and end_sem >= 28 else "Fail"
 
-    conn.commit()
-    conn.close()
-    handler_instance._send_json({
-        "success": True,
-        "totalRecords": len(data_rows),
-        "addedCount": added_cnt,
-        "duplicateCount": dup_cnt,
-        "failedCount": fail_cnt,
-        "errors": errors
-    })
-    return
+            cursor.execute("SELECT id FROM results WHERE student_id = %s AND subject = %s AND semester = %s", (stu_id, subject, sem))
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute(
+                    """UPDATE results SET student_name=%s, internal_marks=%s, end_sem_marks=%s, total_marks=%s, percentage=%s, grade=%s, status=%s
+                       WHERE id=%s""",
+                    (target_name, internal, end_sem, total, percentage, grade, res_status, existing["id"])
+                )
+                dup_cnt += 1
+            else:
+                cursor.execute(
+                    """INSERT INTO results (student_id, student_name, subject, semester, internal_marks, end_sem_marks, total_marks, percentage, grade, status, document)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '')""",
+                    (stu_id, target_name, subject, sem, internal, end_sem, total, percentage, grade, res_status)
+                )
+                added_cnt += 1
 
-#     load Marksheet Document / Photo Endpoint (.pdf, .doc, .docx, .png, .jpg, .jpeg)
+        conn.commit()
+        return handler_instance._send_json({
+            "success": True,
+            "totalRecords": len(data_rows),
+            "addedCount": added_cnt,
+            "duplicateCount": dup_cnt,
+            "failedCount": fail_cnt,
+            "errors": errors
+        })
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('POST', '/api/results/import-excel', handle_post_results_import_excel)
 
 def handle_post_results_upload_document(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
 
-    if role == "Student":
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Students cannot upload documents"}, 403)
-        return
+    if is_student(user):
+        return handler_instance._send_json({"success": False, "message": "Students cannot upload documents"}, 403)
 
     res_id = body.get("result_id") or body.get("id")
     file_b64 = body.get("file_base64") or body.get("file")
     file_name = body.get("file_name", "marksheet.png")
 
     if not res_id or not file_b64:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Result ID and file data are required"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": "Result ID and file data are required"}, 400)
 
     if "," in file_b64:
         file_b64 = file_b64.split(",", 1)[1]
+
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
 
     try:
         raw_bytes = base64.b64decode(file_b64)
@@ -305,36 +294,25 @@ def handle_post_results_upload_document(handler_instance, query_params, body):
         doc_url = f"/uploads/{safe_filename}"
         cursor.execute("UPDATE results SET document = %s WHERE id = %s", (doc_url, res_id))
         conn.commit()
-        conn.close()
-        handler_instance._send_json({"success": True, "message": "Marksheet document/photo uploaded successfully!", "document": doc_url})
-        return
+        return handler_instance._send_json({"success": True, "message": "Marksheet document/photo uploaded successfully!", "document": doc_url})
     except Exception as ex:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": f"Failed to save uploaded file: {ex}"}, 500)
+    finally:
+        cursor.close()
         conn.close()
-        handler_instance._send_json({"success": False, "message": f"Failed to save uploaded file: {ex}"}, 500)
-        return
-
-#      Faculty CRUD
 
 register_route('POST', '/api/results/upload-document', handle_post_results_upload_document)
 
 def handle_post_results(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user or is_student(user):
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Students cannot enter exam results"}, 403)
 
-    if role not in ["Administrator", "Admin", "HOD", "Faculty"]:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Students cannot enter exam results"}, 403)
-        return
     res_id = body.get("id")
-    s_id = body.get("studentId") or body.get("student_id")
-    s_name = body.get("studentName") or body.get("student_name", "Student")
-    subject = body.get("subject")
+    s_id = (body.get("studentId") or body.get("student_id") or "").strip()
+    s_name = (body.get("studentName") or body.get("student_name") or "Student").strip()
+    subject = (body.get("subject") or "").strip()
     semester = body.get("semester", "Semester 1")
     internal = float(body.get("internalMarks", 0))
     end_sem = float(body.get("endSemMarks", 0))
@@ -343,57 +321,74 @@ def handle_post_results(handler_instance, query_params, body):
     grade = "A+" if percentage >= 90 else "A" if percentage >= 80 else "B" if percentage >= 70 else "C" if percentage >= 60 else "D" if percentage >= 40 else "F"
     res_status = "Pass" if percentage >= 40 else "Fail"
 
-    if res_id:
-        cursor.execute(
-            """UPDATE results SET student_id=%s, student_name=%s, subject=%s, semester=%s, internal_marks=%s, end_sem_marks=%s, total_marks=%s, percentage=%s, grade=%s, status=%s
-               WHERE id=%s""",
-            (s_id, s_name, subject, semester, internal, end_sem, total, percentage, grade, res_status, res_id)
-        )
-    else:
-        cursor.execute(
-            """INSERT INTO results (student_id, student_name, subject, semester, internal_marks, end_sem_marks, total_marks, percentage, grade, status, document)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '')""",
-            (s_id, s_name, subject, semester, internal, end_sem, total, percentage, grade, res_status)
-        )
-        res_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    handler_instance._send_json({"success": True, "message": "Result record saved successfully!", "id": res_id})
-    return
+    if not s_id or not subject:
+        return handler_instance._send_json({"success": False, "message": "Student ID and Subject are required"}, 400)
 
-#     . Fees CRUD / Pay Fee
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        if res_id:
+            cursor.execute(
+                """UPDATE results SET student_id=%s, student_name=%s, subject=%s, semester=%s, internal_marks=%s, end_sem_marks=%s, total_marks=%s, percentage=%s, grade=%s, status=%s
+                   WHERE id=%s""",
+                (s_id, s_name, subject, semester, internal, end_sem, total, percentage, grade, res_status, res_id)
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO results (student_id, student_name, subject, semester, internal_marks, end_sem_marks, total_marks, percentage, grade, status, document)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '')""",
+                (s_id, s_name, subject, semester, internal, end_sem, total, percentage, grade, res_status)
+            )
+            res_id = cursor.lastrowid
+
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Result record saved successfully!", "id": res_id})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('POST', '/api/results', handle_post_results)
 
 def handle_delete_results(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user or is_student(user):
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Students cannot delete results"}, 403)
+
+    role = user.get('role')
+    user_dept = user.get('department')
     item_id = query_params.get("id", [None])[0] or body.get("id")
+
     if not item_id:
-        if conn: conn.close()
-        handler_instance._send_json({"success": False, "message": "ID required"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": "Result ID required"}, 400)
 
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
 
-    if role not in ["Administrator", "Admin", "HOD", "Faculty"]:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
-        return
-    if role in ["HOD", "Faculty"]:
-        cursor.execute("SELECT s.department FROM results r JOIN students s ON r.student_id = s.id WHERE r.id = %s", (item_id,))
+    try:
+        cursor.execute("SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE r.id = %s", (item_id,))
         row = cursor.fetchone()
-        if not row or row[0] != user_dept:
-            conn.close()
-            handler_instance._send_json({"success": False, "message": "Cannot delete exam result outside your department"}, 403)
-            return
-    cursor.execute("DELETE FROM results WHERE id = %s", (item_id,))
+        if not row:
+            return handler_instance._send_json({"success": False, "message": "Result record not found"}, 404)
 
+        if role in ["HOD", "Faculty"] and row.get("department") != user_dept:
+            return handler_instance._send_json({"success": False, "message": "Cannot delete exam result outside your department"}, 403)
+
+        cursor.execute("DELETE FROM results WHERE id = %s", (item_id,))
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Exam result deleted successfully"})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('DELETE', '/api/results', handle_delete_results)
-

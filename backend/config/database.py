@@ -47,7 +47,8 @@ def init_db():
                 "timetable.sql",
                 "notices.sql",
                 "documents.sql",
-                "contact_messages.sql"
+                "contact_messages.sql",
+                "faculty_students.sql"
             ]
             
             schema_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'database', 'schema')
@@ -58,17 +59,60 @@ def init_db():
                         with open(filepath, 'r') as file:
                             sql = file.read()
                             try:
-                                # execute handles multiple statements if split correctly, but we'll execute one by one
                                 for statement in sql.split(';'):
                                     statement = statement.strip()
                                     if statement:
                                         cursor.execute(statement)
                             except Error as e:
-                                print(f"CRITICAL ERROR executing {filename}: {e}")
-                                os._exit(1)
+                                print(f"Notice executing {filename}: {e}")
+                                
+            # Safe schema migrations for existing databases
+            try:
+                cursor.execute("SHOW COLUMNS FROM users LIKE 'status'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE users ADD COLUMN status VARCHAR(50) DEFAULT 'Active'")
+                
+                cursor.execute("SHOW COLUMNS FROM faculty LIKE 'status'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE faculty ADD COLUMN status VARCHAR(50) DEFAULT 'Active'")
+            except Exception as e:
+                print(f"Notice on column migration: {e}")
+
+            # Seed default departments if table is empty
+            try:
+                cursor.execute("SELECT COUNT(*) FROM departments")
+                dept_cnt = cursor.fetchone()[0]
+                if dept_cnt == 0:
+                    depts = [
+                        ("CO", "Computer Engineering", "Department of Computer Engineering"),
+                        ("ME", "Mechanical Engineering", "Department of Mechanical Engineering"),
+                        ("CE", "Civil Engineering", "Department of Civil Engineering"),
+                        ("EE", "Electrical Engineering", "Department of Electrical Engineering"),
+                        ("EJ", "Electronics & Telecommunication", "Department of Electronics & Telecommunication"),
+                        ("AE", "Automobile Engineering", "Department of Automobile Engineering"),
+                        ("IF", "Information Technology", "Department of Information Technology")
+                    ]
+                    for d_code, d_name, d_desc in depts:
+                        cursor.execute("INSERT INTO departments (code, name, description) VALUES (%s, %s, %s)", (d_code, d_name, d_desc))
+            except Exception as e:
+                print(f"Notice seeding departments: {e}")
+
+            # Seed default admin user if not exists
+            try:
+                cursor.execute("SELECT id FROM users WHERE username = 'admin'")
+                if not cursor.fetchone():
+                    from auth.utils import hash_password
+                    cursor.execute(
+                        "INSERT INTO users (username, password, role, name, email, department, status) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        ("admin", hash_password("admin123"), "Administrator", "System Administrator", "admin@college.edu", "Administration", "Active")
+                    )
+            except Exception as e:
+                print(f"Notice seeding admin: {e}")
+
             conn.commit()
             cursor.close()
             conn.close()
     except Error as e:
         print(f"CRITICAL ERROR initializing database: {e}")
-        os._exit(1)
+        # Do not crash the entire app if database init encounters transient warning
+

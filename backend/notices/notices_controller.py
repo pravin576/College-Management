@@ -6,109 +6,113 @@ import time
 import os
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user
+from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student
 
 def handle_get_notices(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    role = user.get('role') if user else None
+    user_dept = user.get('department') if user else None
+
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
-    if role == "Student":
-        cursor.execute("SELECT * FROM notices WHERE department IN ('All', %s) AND target_role IN ('All', 'Student') ORDER BY date DESC, id DESC", (user_dept,))
-    elif role == "Faculty":
-        cursor.execute("SELECT * FROM notices WHERE department IN ('All', %s) AND target_role IN ('All', 'Faculty') ORDER BY date DESC, id DESC", (user_dept,))
-    elif role == "HOD":
-        cursor.execute("SELECT * FROM notices WHERE department IN ('All', %s) ORDER BY date DESC, id DESC", (user_dept,))
-    else: # Admin
-        cursor.execute("SELECT * FROM notices ORDER BY date DESC, id DESC")
-    notices = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    handler_instance._send_json({"success": True, "notices": notices})
-    return
-
-#      Subjects Endpoint
+    try:
+        if role == "Student":
+            cursor.execute("SELECT * FROM notices WHERE department IN ('All', %s) AND target_role IN ('All', 'Student') ORDER BY date DESC, id DESC", (user_dept,))
+        elif role == "Faculty":
+            cursor.execute("SELECT * FROM notices WHERE department IN ('All', %s) AND target_role IN ('All', 'Faculty') ORDER BY date DESC, id DESC", (user_dept,))
+        elif role == "HOD":
+            cursor.execute("SELECT * FROM notices WHERE department IN ('All', %s) ORDER BY date DESC, id DESC", (user_dept,))
+        else: # Admin or Public unauthenticated
+            cursor.execute("SELECT * FROM notices ORDER BY date DESC, id DESC")
+        notices = [dict(r) for r in cursor.fetchall()]
+        return handler_instance._send_json({"success": True, "notices": notices})
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/notices', handle_get_notices)
 register_route('GET', '/api/public/notices', handle_get_notices)
 
 def handle_post_notices(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user or not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Forbidden: Only Admin and HOD can publish notices"}, 403)
 
-    if role not in ["Administrator", "Admin", "HOD"]:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Only Admin and HOD can publish notices"}, 403)
-        return
+    role = user.get('role')
+    user_dept = user.get('department')
 
-    n_id = body.get("id") or f"NOT{int(time.time()) % 10000}"
-    title = body.get("title")
-    n_date = body.get("date", time.strftime('%Y-%m-%d'))
-    dept = user_dept if role == "HOD" else body.get("department", "All")
-    target_role = body.get("targetRole", "All")
-    priority = body.get("priority", "Medium")
-    desc = body.get("description", "")
-    attachment = body.get("attachment", "")
+    n_id = (body.get("id") or f"NOT_{int(time.time() * 1000) % 100000}").strip()
+    title = (body.get("title") or "").strip()
+    n_date = body.get("date") or time.strftime('%Y-%m-%d')
+    dept = user_dept if is_hod(user) else (body.get("department") or "All").strip()
+    target_role = body.get("targetRole", "All").strip()
+    priority = body.get("priority", "Medium").strip()
+    desc = (body.get("description") or "").strip()
+    attachment = (body.get("attachment") or "").strip()
     author = user.get("name", "Administration")
 
-    cursor.execute(
-        """REPLACE INTO notices (id, title, date, department, target_role, priority, description, attachment, author)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (n_id, title, n_date, dept, target_role, priority, desc, attachment, author)
-    )
-    conn.commit()
-    conn.close()
-    handler_instance._send_json({"success": True, "message": "Notice published successfully!", "id": n_id})
-    return
+    if not title or not desc:
+        return handler_instance._send_json({"success": False, "message": "Notice Title and Description are required"}, 400)
 
-#     . Profile Update
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            """REPLACE INTO notices (id, title, date, department, target_role, priority, description, attachment, author)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (n_id, title, n_date, dept, target_role, priority, desc, attachment, author)
+        )
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Notice published successfully!", "id": n_id})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('POST', '/api/notices', handle_post_notices)
 
 def handle_delete_notices(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user or not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
+
+    role = user.get('role')
+    user_dept = user.get('department')
     item_id = query_params.get("id", [None])[0] or body.get("id")
+
     if not item_id:
-        if conn: conn.close()
-        handler_instance._send_json({"success": False, "message": "ID required"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": "Notice ID required"}, 400)
 
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
 
-    item_id = query_params.get("id", [None])[0]
-    if not item_id:
-        conn.close()
-        return handler_instance._send_json({"success": False, "message": "ID required"}, 400)
-
-    if role not in ["Administrator", "Admin", "HOD"]:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
-        return
-    if role == "HOD":
-        cursor.execute("SELECT department FROM notices WHERE id = %s", (item_id,))
+    try:
+        cursor.execute("SELECT * FROM notices WHERE id = %s", (item_id,))
         row = cursor.fetchone()
-        if not row or row.get("department") not in [user_dept, "All"]:
-            conn.close()
-            handler_instance._send_json({"success": False, "message": "Cannot delete notice outside your department"}, 403)
-            return
-    cursor.execute("DELETE FROM notices WHERE id = %s", (item_id,))
+        if not row:
+            return handler_instance._send_json({"success": False, "message": "Notice not found"}, 404)
 
+        if is_hod(user) and row.get("department") not in [user_dept, "All"]:
+            return handler_instance._send_json({"success": False, "message": "Cannot delete notice outside your department"}, 403)
+
+        cursor.execute("DELETE FROM notices WHERE id = %s", (item_id,))
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Notice deleted successfully"})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('DELETE', '/api/notices', handle_delete_notices)
-

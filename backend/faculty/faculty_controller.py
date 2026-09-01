@@ -6,119 +6,131 @@ import time
 import os
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user
+from auth.permissions import get_current_user, is_admin, is_hod
 from auth.utils import hash_password
 
 def handle_get_faculty(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+
+    role = user.get('role')
+    user_dept = user.get('department')
+
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
-    if role in ["Student", "HOD", "Faculty"]:
-        cursor.execute("SELECT * FROM faculty WHERE department = %s", (user_dept,))
-    else: # Admin
-        dept_filter = query_params.get("department", [None])[0]
-        if dept_filter and dept_filter != "All":
-            cursor.execute("SELECT * FROM faculty WHERE department = %s", (dept_filter,))
+    try:
+        if is_admin(user):
+            dept_filter = query_params.get("department", [None])[0]
+            if dept_filter and dept_filter != "All":
+                cursor.execute("SELECT * FROM faculty WHERE department = %s ORDER BY name ASC", (dept_filter,))
+            else:
+                cursor.execute("SELECT * FROM faculty ORDER BY department, name ASC")
         else:
-            cursor.execute("SELECT * FROM faculty")
-    fac = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    handler_instance._send_json({"success": True, "faculty": fac})
-    return
-
-#      HODs Endpoint
+            cursor.execute("SELECT * FROM faculty WHERE department = %s ORDER BY name ASC", (user_dept,))
+            
+        fac = [dict(r) for r in cursor.fetchall()]
+        return handler_instance._send_json({"success": True, "faculty": fac})
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/faculty', handle_get_faculty)
 
 def handle_post_faculty(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user or not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Admin and HOD can manage faculty"}, 403)
 
-    if role not in ["Administrator", "Admin", "HOD"]:
-        conn.close()
-        handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
-        return
-    f_id = body.get("id") or body.get("facultyId") or f"FAC{int(time.time()) % 100000}"
-    dept = user_dept if role == "HOD" else body.get("department", "Computer Science")
-    mobile = body.get("mobile", "").strip() or body.get("phone", "").strip()
+    user_dept = user.get('department')
+    f_id = (body.get("id") or body.get("facultyId") or f"FAC_{int(time.time()) % 100000}").strip()
+    dept = user_dept if is_hod(user) else (body.get("department") or "Computer Engineering").strip()
+    mobile = (body.get("mobile", "") or body.get("phone", "")).strip()
     email = body.get("email", "").strip()
     name = body.get("name", "").strip()
+    status_val = body.get("status", "Active")
 
-    cursor.execute(
-        """REPLACE INTO faculty (id, name, department, designation, email, mobile, experience, status)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-        (
-            f_id,
-            name,
-            dept,
-            body.get("designation", "Assistant Professor"),
-            email,
-            mobile,
-            body.get("experience", "1 Year"),
-            body.get("status", "Active")
-        )
-    )
-    cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR email = %s", (f_id, email))
-    if not cursor.fetchone():
-        username = body.get("username") or (email.split("@")[0] if email else f"faculty_{f_id}")
-        plain_pass = body.get("password", "faculty123")
-        hashed = hash_password(plain_pass)
+    if not f_id or not name:
+        return handler_instance._send_json({"success": False, "message": "Faculty ID and Name are required!"}, 400)
+
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
         cursor.execute(
-            "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (username, hashed, "Faculty", name, email, dept, f_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'))
+            """REPLACE INTO faculty (id, name, department, designation, email, mobile, experience, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (
+                f_id,
+                name,
+                dept,
+                body.get("designation", "Assistant Professor"),
+                email if email else f"{f_id.lower()}@college.edu",
+                mobile if mobile else "9876543210",
+                body.get("experience", "1 Year"),
+                status_val
+            )
         )
+        cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR (email = %s AND email != '')", (f_id, email))
+        if not cursor.fetchone():
+            username = body.get("username") or (email.split("@")[0] if email else f"faculty_{f_id.lower()}")
+            plain_pass = body.get("password", "faculty123")
+            hashed = hash_password(plain_pass)
+            cursor.execute(
+                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (username, hashed, "Faculty", name, email if email else f"{f_id.lower()}@college.edu", dept, f_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), status_val)
+            )
 
-    conn.commit()
-    conn.close()
-    handler_instance._send_json({"success": True, "message": "Faculty record saved successfully!", "id": f_id})
-    return
-
-#      HODs CRUD
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Faculty record saved successfully!", "id": f_id})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('POST', '/api/faculty', handle_post_faculty)
 
 def handle_delete_faculty(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+
+    if not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Forbidden: Only Administrator can delete faculty members"}, 403)
+
     item_id = query_params.get("id", [None])[0] or body.get("id")
     if not item_id:
-        if conn: conn.close()
-        handler_instance._send_json({"success": False, "message": "ID required"}, 400)
-        return
+        return handler_instance._send_json({"success": False, "message": "Faculty ID required"}, 400)
 
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
 
-    if role not in ["Administrator", "Admin", "HOD"]:
+    try:
+        cursor.execute("SELECT id FROM faculty WHERE id = %s", (item_id,))
+        fac = cursor.fetchone()
+        if not fac:
+            return handler_instance._send_json({"success": False, "message": "Faculty record not found"}, 404)
+
+        cursor.execute("DELETE FROM faculty_students WHERE faculty_id = %s", (item_id,))
+        cursor.execute("DELETE FROM users WHERE faculty_id = %s", (item_id,))
+        cursor.execute("DELETE FROM faculty WHERE id = %s", (item_id,))
+
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Faculty member deleted successfully"})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": f"Database deletion error: {str(e)}"}, 500)
+    finally:
+        cursor.close()
         conn.close()
-        handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
-        return
-    if role == "HOD":
-        cursor.execute("SELECT department FROM faculty WHERE id = %s", (item_id,))
-        row = cursor.fetchone()
-        if not row or row[0] != user_dept:
-            conn.close()
-            handler_instance._send_json({"success": False, "message": "Cannot delete faculty from another department"}, 403)
-            return
-    cursor.execute("DELETE FROM faculty WHERE id = %s", (item_id,))
-    cursor.execute("DELETE FROM users WHERE faculty_id = %s", (item_id,))
-
 
 register_route('DELETE', '/api/faculty', handle_delete_faculty)
-

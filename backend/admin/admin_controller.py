@@ -4,34 +4,39 @@ import datetime
 import json
 import time
 import os
+import re
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user
+from auth.permissions import get_current_user, is_admin, SESSIONS
 
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOADS_DIR = os.path.normpath(os.path.join(CUR_DIR, "..", "..", "frontend", "uploads"))
+if not os.path.exists(UPLOADS_DIR):
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+
+# ----------------------------------------------------
+# Health Check
+# ----------------------------------------------------
 def handle_get_health(handler_instance, query_params, body):
-    user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
-
     handler_instance._send_json({"status": "ok", "message": "College ERP Python Server Running"})
-    return
-
 
 register_route('GET', '/api/health', handle_get_health)
 
+# ----------------------------------------------------
+# Reports API (Role-Scoped)
+# ----------------------------------------------------
 def handle_get_reports_data(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+        
+    role = user.get('role')
+    user_dept = user.get('department')
+    student_id = user.get('student_id')
+    
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
     report_type = query_params.get("type", ["student"])[0]
@@ -42,86 +47,124 @@ def handle_get_reports_data(handler_instance, query_params, body):
     data = []
     summary = {}
 
-    if report_type == "student":
-        sql = "SELECT * FROM students WHERE 1=1"
-        p = []
-        if role in ["HOD", "Faculty"]:
-            sql += " AND department = %s"; p.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND department = %s"; p.append(dept_f)
-        if year_f and year_f != "All":
-            sql += " AND year = %s"; p.append(year_f)
-        if search_q:
-            sql += " AND (name LIKE %s OR id LIKE %s OR roll_number LIKE %s)"
-            p.extend([f"%{search_q}%", f"%{search_q}%", f"%{search_q}%"])
-        sql += " ORDER BY department, year, name"
-        cursor.execute(sql, tuple(p))
-        data = [dict(r) for r in cursor.fetchall()]
-        summary = {"totalCount": len(data)}
+    try:
+        if report_type == "student":
+            if role == "Student":
+                sql = "SELECT * FROM students WHERE id = %s"
+                cursor.execute(sql, (student_id,))
+            else:
+                sql = "SELECT * FROM students WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                if year_f and year_f != "All":
+                    sql += " AND year = %s"
+                    p.append(year_f)
+                if search_q:
+                    sql += " AND (name LIKE %s OR id LIKE %s OR roll_number LIKE %s)"
+                    p.extend([f"%{search_q}%", f"%{search_q}%", f"%{search_q}%"])
+                sql += " ORDER BY department, year, name"
+                cursor.execute(sql, tuple(p))
+            data = [dict(r) for r in cursor.fetchall()]
+            summary = {"totalCount": len(data)}
 
-    elif report_type == "faculty":
-        sql = "SELECT * FROM faculty WHERE 1=1"
-        p = []
-        if role in ["HOD", "Faculty"]:
-            sql += " AND department = %s"; p.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND department = %s"; p.append(dept_f)
-        cursor.execute(sql, tuple(p))
-        data = [dict(r) for r in cursor.fetchall()]
-        summary = {"totalCount": len(data)}
+        elif report_type == "faculty":
+            if role == "Student":
+                sql = "SELECT id, name, department, designation, email FROM faculty WHERE department = %s"
+                cursor.execute(sql, (user_dept,))
+            else:
+                sql = "SELECT * FROM faculty WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                cursor.execute(sql, tuple(p))
+            data = [dict(r) for r in cursor.fetchall()]
+            summary = {"totalCount": len(data)}
 
-    elif report_type == "attendance":
-        sql = "SELECT * FROM attendance WHERE 1=1"
-        p = []
-        if role in ["HOD", "Faculty"]:
-            sql += " AND department = %s"; p.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND department = %s"; p.append(dept_f)
-        cursor.execute(sql, tuple(p))
-        data = [dict(r) for r in cursor.fetchall()]
-        summary = {"totalCount": len(data), "presentCount": sum(1 for d in data if d.get("status") == "Present")}
+        elif report_type == "attendance":
+            if role == "Student":
+                sql = "SELECT * FROM attendance WHERE student_id = %s ORDER BY date DESC"
+                cursor.execute(sql, (student_id,))
+            else:
+                sql = "SELECT * FROM attendance WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                sql += " ORDER BY date DESC"
+                cursor.execute(sql, tuple(p))
+            data = [dict(r) for r in cursor.fetchall()]
+            summary = {"totalCount": len(data), "presentCount": sum(1 for d in data if d.get("status") == "Present")}
 
-    elif report_type == "results":
-        sql = "SELECT r.*, s.department, s.year FROM results r JOIN students s ON r.student_id = s.id WHERE 1=1"
-        p = []
-        if role in ["HOD", "Faculty"]:
-            sql += " AND s.department = %s"; p.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND s.department = %s"; p.append(dept_f)
-        cursor.execute(sql, tuple(p))
-        data = [dict(r) for r in cursor.fetchall()]
-        summary = {"totalCount": len(data), "passCount": sum(1 for d in data if d.get("status") == "Pass")}
+        elif report_type == "results":
+            if role == "Student":
+                sql = "SELECT * FROM results WHERE student_id = %s"
+                cursor.execute(sql, (student_id,))
+            else:
+                sql = "SELECT r.*, s.department, s.year FROM results r JOIN students s ON r.student_id = s.id WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND s.department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND s.department = %s"
+                    p.append(dept_f)
+                cursor.execute(sql, tuple(p))
+            data = [dict(r) for r in cursor.fetchall()]
+            summary = {"totalCount": len(data), "passCount": sum(1 for d in data if d.get("status") == "Pass")}
 
-    elif report_type == "fees":
-        sql = "SELECT * FROM fees WHERE 1=1"
-        p = []
-        if role in ["HOD", "Faculty"]:
-            sql += " AND department = %s"; p.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND department = %s"; p.append(dept_f)
-        cursor.execute(sql, tuple(p))
-        data = [dict(r) for r in cursor.fetchall()]
-        summary = {
-            "totalPaid": sum(d.get("paid_fees", 0) for d in data),
-            "totalPending": sum(d.get("pending_fees", 0) for d in data)
-        }
+        elif report_type == "fees":
+            if role == "Student":
+                sql = "SELECT * FROM fees WHERE student_id = %s"
+                cursor.execute(sql, (student_id,))
+            else:
+                sql = "SELECT * FROM fees WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                cursor.execute(sql, tuple(p))
+            data = [dict(r) for r in cursor.fetchall()]
+            summary = {
+                "totalPaid": sum(float(d.get("paid_fees") or 0) for d in data),
+                "totalPending": sum(float(d.get("pending_fees") or 0) for d in data)
+            }
 
-    conn.close()
-    handler_instance._send_json({"success": True, "type": report_type, "summary": summary, "data": data})
-    return
-
-#     ports CSV Export Endpoint
+        return handler_instance._send_json({"success": True, "type": report_type, "summary": summary, "data": data})
+    except Exception as e:
+        return handler_instance._send_json({"success": False, "message": f"Error fetching report: {str(e)}"}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/reports/data', handle_get_reports_data)
 
 def handle_get_reports_export(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+        
+    role = user.get('role')
+    user_dept = user.get('department')
+    student_id = user.get('student_id')
+    
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
     report_type = query_params.get("type", ["student"])[0]
@@ -130,177 +173,461 @@ def handle_get_reports_export(handler_instance, query_params, body):
     lines = []
     filename = f"{report_type}_report.csv"
 
-    if report_type == "student":
-        sql = "SELECT * FROM students WHERE 1=1"
-        p = []
-        if role in ["HOD", "Faculty"]:
-            sql += " AND department = %s"; p.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND department = %s"; p.append(dept_f)
-        cursor.execute(sql, tuple(p))
-        rows = [dict(r) for r in cursor.fetchall()]
-        lines.append("Student ID,Roll Number,Name,Department,Year,Semester,Division,Email,Mobile,Status\n")
-        for r in rows:
-            lines.append(f'"{r["id"]}","{r["roll_number"]}","{r["name"]}","{r["department"]}","{r.get("year","")}","{r["semester"]}","{r["division"]}","{r["email"]}","{r["mobile"]}","{r.get("status","")}"\n')
+    try:
+        if report_type == "student":
+            if role == "Student":
+                sql = "SELECT * FROM students WHERE id = %s"
+                cursor.execute(sql, (student_id,))
+            else:
+                sql = "SELECT * FROM students WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                cursor.execute(sql, tuple(p))
+            rows = [dict(r) for r in cursor.fetchall()]
+            lines.append("Student ID,Roll Number,Name,Department,Year,Semester,Division,Email,Mobile,Status\n")
+            for r in rows:
+                lines.append(f'"{r["id"]}","{r["roll_number"]}","{r["name"]}","{r["department"]}","{r.get("year","")}","{r["semester"]}","{r["division"]}","{r["email"]}","{r["mobile"]}","{r.get("status","")}"\n')
 
-    elif report_type == "fees":
-        sql = "SELECT * FROM fees WHERE 1=1"
-        p = []
-        if role in ["HOD", "Faculty"]:
-            sql += " AND department = %s"; p.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND department = %s"; p.append(dept_f)
-        cursor.execute(sql, tuple(p))
-        rows = [dict(r) for r in cursor.fetchall()]
-        lines.append("Student ID,Student Name,Department,Total Fees,Paid Fees,Pending Fees,Status,Payment Date\n")
-        for r in rows:
-            lines.append(f'"{r["student_id"]}","{r["student_name"]}","{r["department"]}","{r["total_fees"]}","{r["paid_fees"]}","{r["pending_fees"]}","{r["payment_status"]}","{r.get("payment_date","")}"\n')
+        elif report_type == "fees":
+            if role == "Student":
+                sql = "SELECT * FROM fees WHERE student_id = %s"
+                cursor.execute(sql, (student_id,))
+            else:
+                sql = "SELECT * FROM fees WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                cursor.execute(sql, tuple(p))
+            rows = [dict(r) for r in cursor.fetchall()]
+            lines.append("Student ID,Student Name,Department,Total Fees,Paid Fees,Pending Fees,Status,Payment Date\n")
+            for r in rows:
+                lines.append(f'"{r["student_id"]}","{r["student_name"]}","{r["department"]}","{r["total_fees"]}","{r["paid_fees"]}","{r["pending_fees"]}","{r["payment_status"]}","{r.get("payment_date","")}"\n')
+        else:
+            lines.append("Report Export Data\n")
 
-    else:
-        lines.append("Report Export Data\n")
-
-    conn.close()
-    handler_instance.send_response(200)
-    handler_instance.send_header("Content-type", "text/csv; charset=utf-8")
-    handler_instance.send_header("Content-Disposition", f'attachment; filename="{filename}"')
-    handler_instance.end_headers()
-    handler_instance.wfile.write("".join(lines).encode("utf-8"))
-    return
-
-#     D Student Year Summary Count Endpoint
+        handler_instance.send_response(200)
+        handler_instance.send_header("Content-type", "text/csv; charset=utf-8")
+        handler_instance.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        handler_instance.end_headers()
+        handler_instance.wfile.write("".join(lines).encode("utf-8"))
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/reports/export', handle_get_reports_export)
 
+# ----------------------------------------------------
+# Dashboard Stats (Role-Scoped)
+# ----------------------------------------------------
 def handle_post_dashboard_stats(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
+    if not user:
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
+        
+    role = user.get('role')
+    user_dept = user.get('department')
+    student_id = user.get('student_id')
+    
     conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
     stats = {}
-    if role in ["Administrator", "Admin"]:
-        cursor.execute("SELECT COUNT(*) as count FROM students")
-        stats["totalStudents"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT COUNT(*) as count FROM faculty")
-        stats["totalFaculty"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT COUNT(*) as count FROM hods")
-        stats["totalHODs"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT COUNT(*) as count FROM departments")
-        stats["totalDepartments"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT SUM(paid_fees) as paid, SUM(pending_fees) as pending FROM fees")
-        row = cursor.fetchone()
-        stats["totalPaidFees"] = row["paid"] or 0
-        stats["totalPendingFees"] = row["pending"] or 0
-        cursor.execute("SELECT COUNT(*) as count FROM notices")
-        stats["totalNotices"] = cursor.fetchone()["count"]
-    elif role == "HOD":
-        cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (user_dept,))
-        stats["totalStudents"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT COUNT(*) as count FROM faculty WHERE department = %s", (user_dept,))
-        stats["totalFaculty"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (user_dept,))
-        stats["totalNotices"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT SUM(paid_fees) as paid, SUM(pending_fees) as pending FROM fees WHERE department = %s", (user_dept,))
-        row = cursor.fetchone()
-        stats["totalPaidFees"] = row["paid"] or 0
-        stats["totalPendingFees"] = row["pending"] or 0
-    elif role == "Faculty":
-        cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (user_dept,))
-        stats["totalStudents"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (user_dept,))
-        stats["totalNotices"] = cursor.fetchone()["count"]
-        stats["assignedSubjects"] = 3
-        stats["totalClasses"] = 12
-    elif role == "Student":
-        cursor.execute("SELECT COUNT(*) as count FROM notices WHERE (department = %s OR department = 'All') AND (target_role = 'Student' OR target_role = 'All')", (user_dept,))
-        stats["totalNotices"] = cursor.fetchone()["count"]
-        cursor.execute("SELECT total_fees, paid_fees, pending_fees FROM fees WHERE student_id = %s", (student_id,))
-        fee_row = cursor.fetchone()
-        cursor.execute("SELECT AVG(percentage) FROM results WHERE student_id = %s", (student_id,))
-        avg_p = cursor.fetchone()[0]
-        stats["avgPercentage"] = round(avg_p, 1) if avg_p else 0.0
+    try:
+        if is_admin(user):
+            cursor.execute("SELECT COUNT(*) as count FROM students")
+            stats["totalStudents"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM faculty")
+            stats["totalFaculty"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM hods")
+            stats["totalHODs"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM departments")
+            stats["totalDepartments"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT SUM(paid_fees) as paid, SUM(pending_fees) as pending FROM fees")
+            row = cursor.fetchone()
+            stats["totalPaidFees"] = float(row["paid"] or 0)
+            stats["totalPendingFees"] = float(row["pending"] or 0)
+            cursor.execute("SELECT COUNT(*) as count FROM notices")
+            stats["totalNotices"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM users WHERE status = 'Pending'")
+            stats["pendingUsers"] = cursor.fetchone()["count"]
 
-    conn.close()
-    handler_instance._send_json({"success": True, "stats": stats})
-    return
+        elif role == "HOD":
+            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (user_dept,))
+            stats["totalStudents"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM faculty WHERE department = %s", (user_dept,))
+            stats["totalFaculty"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (user_dept,))
+            stats["totalNotices"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT SUM(paid_fees) as paid, SUM(pending_fees) as pending FROM fees WHERE department = %s", (user_dept,))
+            row = cursor.fetchone()
+            stats["totalPaidFees"] = float(row["paid"] or 0)
+            stats["totalPendingFees"] = float(row["pending"] or 0)
 
-#     .close()
-#     ._send_json({"error": "API endpoint not found"}, 404)
+        elif role == "Faculty":
+            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (user_dept,))
+            stats["totalStudents"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (user_dept,))
+            stats["totalNotices"] = cursor.fetchone()["count"]
+            fac_id = user.get("faculty_id")
+            if fac_id:
+                cursor.execute("SELECT COUNT(*) as count FROM faculty_students WHERE faculty_id = %s", (fac_id,))
+                stats["assignedStudentsCount"] = cursor.fetchone()["count"]
 
-    ed_url = urllib.parse.urlparse(self.path)
-#      = parsed_url.path
+        elif role == "Student":
+            cursor.execute("SELECT COUNT(*) as count FROM notices WHERE (department = %s OR department = 'All') AND (target_role = 'Student' OR target_role = 'All')", (user_dept,))
+            stats["totalNotices"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT total_fees, paid_fees, pending_fees FROM fees WHERE student_id = %s", (student_id,))
+            fee_row = cursor.fetchone()
+            if fee_row:
+                stats["totalFees"] = float(fee_row["total_fees"])
+                stats["paidFees"] = float(fee_row["paid_fees"])
+                stats["pendingFees"] = float(fee_row["pending_fees"])
+            cursor.execute("SELECT AVG(percentage) as avg_pct FROM results WHERE student_id = %s", (student_id,))
+            avg_row = cursor.fetchone()
+            stats["avgPercentage"] = round(float(avg_row["avg_pct"]), 1) if avg_row and avg_row["avg_pct"] else 0.0
 
-#     nary / Multipart Upload Handling
+        return handler_instance._send_json({"success": True, "stats": stats})
+    except Exception as e:
+        return handler_instance._send_json({"success": False, "message": f"Stats error: {str(e)}"}, 500)
+    finally:
+        cursor.close()
+        conn.close()
 
 register_route('GET', '/api/dashboard/stats', handle_post_dashboard_stats)
 
+# ----------------------------------------------------
+# Multipart File Upload (Protected against path traversal)
+# ----------------------------------------------------
 def handle_post_upload(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    role = user['role'] if user else None
-    user_dept = user['department'] if user else None
-    student_id = user['student_id'] if user else None
-    faculty_id = user['faculty_id'] if user else None
-    conn = get_db_connection()
-    if not conn: return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
-
-    user = self.get_current_user()
     if not user:
-        handler_instance._send_json({"success": False, "message": "Authentication required"}, 401)
-        return
+        return handler_instance._send_json({"success": False, "message": "Authentication required"}, 401)
 
-    content_type = self.headers.get("Content-Type", "")
-    content_length = int(self.headers.get("Content-Length", 0))
-    body = self.rfile.read(content_length)
+    content_type = handler_instance.headers.get("Content-Type", "")
+    content_length = int(handler_instance.headers.get("Content-Length", 0))
+    raw_body = getattr(handler_instance, "_raw_body", b"")
+    if not raw_body and content_length > 0:
+        try:
+            raw_body = handler_instance.rfile.read(content_length)
+        except Exception:
+            raw_body = b""
 
-    if "boundary=" in content_type:
-        # Extract boundary value safely handling quotes and parameters
-        boundary_val = content_type.split("boundary=")[1].split(";")[0].strip().strip('"').strip("'")
-        boundary = boundary_val.encode('utf-8')
-        delimiter = b"--" + boundary
-        parts = body.split(delimiter)
-        for part in parts:
-            if b"filename=" in part:
-                if part.startswith(b"\r\n"):
-                    part = part[2:]
-                if b"\r\n\r\n" in part:
-                    headers_part, file_data = part.split(b"\r\n\r\n", 1)
-                    # Remove trailing \r\n (or \r\n--) before the boundary delimiter
-                    if file_data.endswith(b"\r\n"):
-                        file_data = file_data[:-2]
-                    elif file_data.endswith(b"\r\n--"):
-                        file_data = file_data[:-4]
+    try:
+        if "boundary=" in content_type:
+            boundary_val = content_type.split("boundary=")[1].split(";")[0].strip().strip('"').strip("'")
+            boundary = boundary_val.encode('utf-8')
+            delimiter = b"--" + boundary
+            parts = raw_body.split(delimiter)
+            for part in parts:
+                if b"filename=" in part:
+                    if part.startswith(b"\r\n"):
+                        part = part[2:]
+                    if b"\r\n\r\n" in part:
+                        headers_part, file_data = part.split(b"\r\n\r\n", 1)
+                        if file_data.endswith(b"\r\n"):
+                            file_data = file_data[:-2]
+                        elif file_data.endswith(b"\r\n--"):
+                            file_data = file_data[:-4]
 
-                    headers_str = headers_part.decode('utf-8', errors='ignore')
-                    fn_match = re.search(r'filename=["\']%s([^"\'\r\n;]+)["\']%s', headers_str)
-                    raw_fn = fn_match.group(1).strip() if fn_match else f"upload_{int(time.time())}.dat"
-                    safe_basename = re.sub(r'[^a-zA-Z0-9_.-]', '_', os.path.basename(raw_fn))
-                    safe_fn = f"{int(time.time())}_{safe_basename}"
-                    out_path = os.path.join(UPLOADS_DIR, safe_fn)
-                    with open(out_path, "wb") as f:
-                        f.write(file_data)
-                    rel_path = f"/uploads/{safe_fn}"
-                    handler_instance._send_json({"success": True, "filePath": rel_path, "fileName": safe_fn})
-                    return
+                        headers_str = headers_part.decode('utf-8', errors='ignore')
+                        fn_match = re.search(r'filename=["\']?([^"\'\r\n;]+)["\']?', headers_str)
+                        raw_fn = fn_match.group(1).strip() if fn_match else f"upload_{int(time.time())}.dat"
+                        safe_basename = re.sub(r'[^a-zA-Z0-9_.-]', '_', os.path.basename(raw_fn))
+                        safe_fn = f"{int(time.time())}_{safe_basename}"
+                        out_path = os.path.join(UPLOADS_DIR, safe_fn)
+                        with open(out_path, "wb") as f:
+                            f.write(file_data)
+                        return handler_instance._send_json({"success": True, "filePath": f"/uploads/{safe_fn}", "fileName": safe_fn})
 
-    filename = self.headers.get("X-File-Name", f"file_{int(time.time())}.dat")
-    safe_basename = re.sub(r'[^a-zA-Z0-9_.-]', '_', os.path.basename(filename))
-    safe_fn = f"{int(time.time())}_{safe_basename}"
-    out_path = os.path.join(UPLOADS_DIR, safe_fn)
-    with open(out_path, "wb") as f:
-        f.write(body)
-    handler_instance._send_json({"success": True, "filePath": f"/uploads/{safe_fn}", "fileName": safe_fn})
-    return
-
-    ent_length = int(self.headers.get("Content-Length", 0))
-    _data = self.rfile.read(content_length)
-    oad = json.loads(post_data.decode("utf-8")) if post_data else {}
-
-#      Login Endpoint
+        filename = handler_instance.headers.get("X-File-Name", f"file_{int(time.time())}.dat")
+        safe_basename = re.sub(r'[^a-zA-Z0-9_.-]', '_', os.path.basename(filename))
+        safe_fn = f"{int(time.time())}_{safe_basename}"
+        out_path = os.path.join(UPLOADS_DIR, safe_fn)
+        with open(out_path, "wb") as f:
+            f.write(raw_body)
+        return handler_instance._send_json({"success": True, "filePath": f"/uploads/{safe_fn}", "fileName": safe_fn})
+    except Exception as ex:
+        return handler_instance._send_json({"success": False, "message": f"Upload error: {str(ex)}"}, 500)
 
 register_route('POST', '/api/upload', handle_post_upload)
 
+# ----------------------------------------------------
+# User Management & Pending Approvals (Admin Only)
+# ----------------------------------------------------
+def handle_get_pending_users(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can view pending user authorizations"}, 403)
+        
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        cursor.execute("SELECT id, username, name, role, email, mobile, department, student_id, faculty_id, status, created_at FROM users WHERE status = 'Pending' ORDER BY created_at DESC")
+        pending_users = [dict(r) for r in cursor.fetchall()]
+        return handler_instance._send_json({"success": True, "users": pending_users})
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('GET', '/api/admin/pending-users', handle_get_pending_users)
+register_route('GET', '/api/users/pending', handle_get_pending_users)
+
+def handle_post_approve_user(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can approve user accounts"}, 403)
+        
+    user_id = body.get("id") or query_params.get("id", [None])[0]
+    username = body.get("username")
+    
+    if not user_id and not username:
+        return handler_instance._send_json({"success": False, "message": "User ID or Username required"}, 400)
+        
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        if user_id:
+            cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        else:
+            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+            
+        target_user = cursor.fetchone()
+        if not target_user:
+            return handler_instance._send_json({"success": False, "message": "User not found"}, 404)
+            
+        # Update user status to Active
+        cursor.execute("UPDATE users SET status = 'Active' WHERE id = %s", (target_user["id"],))
+        
+        # Update status in corresponding role table
+        if target_user["role"] == "Faculty" and target_user.get("faculty_id"):
+            cursor.execute("UPDATE faculty SET status = 'Active' WHERE id = %s", (target_user["faculty_id"],))
+            
+        conn.commit()
+        return handler_instance._send_json({
+            "success": True, 
+            "message": f"User '{target_user['name']}' ({target_user['role']}) approved successfully and can now log in."
+        })
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": f"Approval error: {str(e)}"}, 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('POST', '/api/admin/approve-user', handle_post_approve_user)
+register_route('POST', '/api/users/approve', handle_post_approve_user)
+
+def handle_post_reject_user(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can reject user accounts"}, 403)
+        
+    user_id = body.get("id") or query_params.get("id", [None])[0]
+    username = body.get("username")
+    
+    if not user_id and not username:
+        return handler_instance._send_json({"success": False, "message": "User ID or Username required"}, 400)
+        
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        if user_id:
+            cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        else:
+            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+            
+        target_user = cursor.fetchone()
+        if not target_user:
+            return handler_instance._send_json({"success": False, "message": "User not found"}, 404)
+            
+        cursor.execute("UPDATE users SET status = 'Rejected' WHERE id = %s", (target_user["id"],))
+        
+        if target_user["role"] == "Faculty" and target_user.get("faculty_id"):
+            cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE id = %s", (target_user["faculty_id"],))
+            
+        conn.commit()
+        return handler_instance._send_json({
+            "success": True, 
+            "message": f"Registration request for '{target_user['name']}' has been rejected."
+        })
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": f"Rejection error: {str(e)}"}, 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('POST', '/api/admin/reject-user', handle_post_reject_user)
+register_route('POST', '/api/users/reject', handle_post_reject_user)
+
+def handle_get_users(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can view all user accounts"}, 403)
+        
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    role_filter = query_params.get("role", [None])[0]
+    status_filter = query_params.get("status", [None])[0]
+
+    try:
+        sql = "SELECT id, username, name, role, email, mobile, department, student_id, faculty_id, status, created_at FROM users WHERE 1=1"
+        p = []
+        if role_filter and role_filter != "All":
+            sql += " AND role = %s"
+            p.append(role_filter)
+        if status_filter and status_filter != "All":
+            sql += " AND status = %s"
+            p.append(status_filter)
+            
+        sql += " ORDER BY id DESC"
+        cursor.execute(sql, tuple(p))
+        users_list = [dict(r) for r in cursor.fetchall()]
+        return handler_instance._send_json({"success": True, "users": users_list})
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('GET', '/api/users', handle_get_users)
+
+def handle_post_user_status(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can modify user status"}, 403)
+        
+    user_id = body.get("id")
+    new_status = body.get("status")
+    
+    if not user_id or not new_status or new_status not in ["Active", "Inactive", "Pending", "Rejected"]:
+        return handler_instance._send_json({"success": False, "message": "Valid User ID and Status (Active/Inactive/Pending/Rejected) required"}, 400)
+        
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        cursor.execute("UPDATE users SET status = %s WHERE id = %s", (new_status, user_id))
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": f"User status changed to {new_status}."})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('POST', '/api/admin/users/status', handle_post_user_status)
+register_route('POST', '/api/users/status', handle_post_user_status)
+
+# ----------------------------------------------------
+# Destructive Operations & Database Reset (Admin Only)
+# ----------------------------------------------------
+def handle_post_delete_students_bulk(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can perform bulk deletion"}, 403)
+        
+    student_ids = body.get("student_ids", [])
+    delete_all = body.get("delete_all", False)
+    
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        if delete_all:
+            cursor.execute("DELETE FROM faculty_students")
+            cursor.execute("DELETE FROM attendance")
+            cursor.execute("DELETE FROM results")
+            cursor.execute("DELETE FROM fees")
+            cursor.execute("DELETE FROM users WHERE role = 'Student'")
+            cursor.execute("DELETE FROM students")
+            conn.commit()
+            return handler_instance._send_json({"success": True, "message": "All student records deleted successfully."})
+        elif isinstance(student_ids, list) and len(student_ids) > 0:
+            for s_id in student_ids:
+                cursor.execute("DELETE FROM faculty_students WHERE student_id = %s", (s_id,))
+                cursor.execute("DELETE FROM attendance WHERE student_id = %s", (s_id,))
+                cursor.execute("DELETE FROM results WHERE student_id = %s", (s_id,))
+                cursor.execute("DELETE FROM fees WHERE student_id = %s", (s_id,))
+                cursor.execute("DELETE FROM users WHERE student_id = %s", (s_id,))
+                cursor.execute("DELETE FROM students WHERE id = %s", (s_id,))
+            conn.commit()
+            return handler_instance._send_json({"success": True, "message": f"Successfully deleted {len(student_ids)} student records."})
+        else:
+            return handler_instance._send_json({"success": False, "message": "No students selected for deletion"}, 400)
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('POST', '/api/admin/data/delete-students', handle_post_delete_students_bulk)
+
+def handle_post_reset_database(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can reset system data"}, 403)
+        
+    confirmation = body.get("confirmation", "").strip()
+    if confirmation != "DELETE ALL DATA":
+        return handler_instance._send_json({
+            "success": False, 
+            "message": "Confirmation mismatch. You must explicitly pass confirmation: 'DELETE ALL DATA' to perform a complete data reset."
+        }, 400)
+        
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Clear transactional tables while preserving admin user
+        cursor.execute("DELETE FROM faculty_students")
+        cursor.execute("DELETE FROM attendance")
+        cursor.execute("DELETE FROM results")
+        cursor.execute("DELETE FROM fees")
+        cursor.execute("DELETE FROM timetable")
+        cursor.execute("DELETE FROM notices")
+        cursor.execute("DELETE FROM documents")
+        cursor.execute("DELETE FROM contact_messages")
+        cursor.execute("DELETE FROM students")
+        cursor.execute("DELETE FROM faculty")
+        cursor.execute("DELETE FROM hods")
+        cursor.execute("DELETE FROM users WHERE role NOT IN ('Administrator', 'Admin')")
+        conn.commit()
+        return handler_instance._send_json({"success": True, "message": "Database successfully reset. Non-admin data cleared."})
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": f"Reset error: {str(e)}"}, 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('POST', '/api/admin/data/reset-database', handle_post_reset_database)

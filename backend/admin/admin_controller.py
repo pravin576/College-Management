@@ -391,11 +391,15 @@ def handle_post_approve_user(handler_instance, query_params, body):
     if not user or not is_admin(user):
         return handler_instance._send_json({"success": False, "message": "Only Administrators can approve user accounts"}, 403)
         
-    user_id = body.get("id") or query_params.get("id", [None])[0]
+    user_id = body.get("user_id") or body.get("id") or query_params.get("user_id", [None])[0] or query_params.get("id", [None])[0]
     username = body.get("username")
+    email = body.get("email")
+    faculty_id = body.get("faculty_id") or body.get("facultyId")
+    student_id = body.get("student_id") or body.get("studentId")
+    department = body.get("department")
     
-    if not user_id and not username:
-        return handler_instance._send_json({"success": False, "message": "User ID or Username required"}, 400)
+    if not user_id and not username and not email and not faculty_id and not student_id and not department:
+        return handler_instance._send_json({"success": False, "message": "User identifier required for approval"}, 400)
         
     conn = get_db_connection()
     if not conn:
@@ -403,36 +407,60 @@ def handle_post_approve_user(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
+        target_user = None
         if user_id:
-            cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        else:
-            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-            
-        target_user = cursor.fetchone()
+            if str(user_id).isdigit():
+                cursor.execute("SELECT * FROM users WHERE id = %s", (int(user_id),))
+                target_user = cursor.fetchone()
+            if not target_user:
+                cursor.execute("SELECT * FROM users WHERE faculty_id = %s OR student_id = %s OR username = %s OR email = %s", (user_id, user_id, user_id, user_id))
+                target_user = cursor.fetchone()
+
+        if not target_user and username:
+            cursor.execute("SELECT * FROM users WHERE username = %s OR email = %s", (username, username))
+            target_user = cursor.fetchone()
+
+        if not target_user and email:
+            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+            target_user = cursor.fetchone()
+
+        if not target_user and faculty_id:
+            cursor.execute("SELECT * FROM users WHERE faculty_id = %s", (faculty_id,))
+            target_user = cursor.fetchone()
+
+        if not target_user and student_id:
+            cursor.execute("SELECT * FROM users WHERE student_id = %s", (student_id,))
+            target_user = cursor.fetchone()
+
+        if not target_user and department:
+            cursor.execute("SELECT * FROM users WHERE role = 'HOD' AND LOWER(TRIM(department)) = LOWER(TRIM(%s))", (department,))
+            target_user = cursor.fetchone()
+
         if not target_user:
-            return handler_instance._send_json({"success": False, "message": "User not found"}, 404)
+            return handler_instance._send_json({"success": False, "message": "User not found for authorization approval"}, 404)
             
-        # Update user status to Active in users table
+        # Update user status to Active in users table using the exact users.id
         cursor.execute("UPDATE users SET status = 'Active' WHERE id = %s", (target_user["id"],))
         
         # Update status in corresponding role table
         role = target_user.get("role")
         fac_id = target_user.get("faculty_id") or ""
-        email = target_user.get("email") or ""
-        dept = target_user.get("department") or ""
+        u_email = target_user.get("email") or ""
+        u_dept = target_user.get("department") or ""
         stu_id = target_user.get("student_id") or ""
 
         if role == "Faculty":
-            cursor.execute("UPDATE faculty SET status = 'Active' WHERE id = %s OR email = %s", (fac_id, email))
+            cursor.execute("UPDATE faculty SET status = 'Active' WHERE id = %s OR (email = %s AND email != '')", (fac_id, u_email))
         elif role == "HOD":
-            cursor.execute("UPDATE hods SET status = 'Active' WHERE faculty_id = %s OR department = %s OR email = %s", (fac_id, dept, email))
+            cursor.execute("UPDATE hods SET status = 'Active' WHERE faculty_id = %s OR (department = %s AND department != '') OR (email = %s AND email != '')", (fac_id, u_dept, u_email))
         elif role == "Student":
-            cursor.execute("UPDATE students SET status = 'Active' WHERE id = %s OR email = %s", (stu_id, email))
+            cursor.execute("UPDATE students SET status = 'Active' WHERE id = %s OR (email = %s AND email != '')", (stu_id, u_email))
             
         conn.commit()
         return handler_instance._send_json({
             "success": True, 
-            "message": f"User '{target_user['name']}' ({target_user['role']}) approved successfully and can now log in."
+            "message": f"User '{target_user['name']}' ({target_user['role']}) approved successfully and can now log in.",
+            "user_id": target_user["id"]
         })
     except Exception as e:
         conn.rollback()
@@ -449,11 +477,15 @@ def handle_post_reject_user(handler_instance, query_params, body):
     if not user or not is_admin(user):
         return handler_instance._send_json({"success": False, "message": "Only Administrators can reject user accounts"}, 403)
         
-    user_id = body.get("id") or query_params.get("id", [None])[0]
+    user_id = body.get("user_id") or body.get("id") or query_params.get("user_id", [None])[0] or query_params.get("id", [None])[0]
     username = body.get("username")
+    email = body.get("email")
+    faculty_id = body.get("faculty_id") or body.get("facultyId")
+    student_id = body.get("student_id") or body.get("studentId")
+    department = body.get("department")
     
-    if not user_id and not username:
-        return handler_instance._send_json({"success": False, "message": "User ID or Username required"}, 400)
+    if not user_id and not username and not email and not faculty_id and not student_id and not department:
+        return handler_instance._send_json({"success": False, "message": "User identifier required for rejection"}, 400)
         
     conn = get_db_connection()
     if not conn:
@@ -461,12 +493,35 @@ def handle_post_reject_user(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
+        target_user = None
         if user_id:
-            cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        else:
-            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-            
-        target_user = cursor.fetchone()
+            if str(user_id).isdigit():
+                cursor.execute("SELECT * FROM users WHERE id = %s", (int(user_id),))
+                target_user = cursor.fetchone()
+            if not target_user:
+                cursor.execute("SELECT * FROM users WHERE faculty_id = %s OR student_id = %s OR username = %s OR email = %s", (user_id, user_id, user_id, user_id))
+                target_user = cursor.fetchone()
+
+        if not target_user and username:
+            cursor.execute("SELECT * FROM users WHERE username = %s OR email = %s", (username, username))
+            target_user = cursor.fetchone()
+
+        if not target_user and email:
+            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+            target_user = cursor.fetchone()
+
+        if not target_user and faculty_id:
+            cursor.execute("SELECT * FROM users WHERE faculty_id = %s", (faculty_id,))
+            target_user = cursor.fetchone()
+
+        if not target_user and student_id:
+            cursor.execute("SELECT * FROM users WHERE student_id = %s", (student_id,))
+            target_user = cursor.fetchone()
+
+        if not target_user and department:
+            cursor.execute("SELECT * FROM users WHERE role = 'HOD' AND LOWER(TRIM(department)) = LOWER(TRIM(%s))", (department,))
+            target_user = cursor.fetchone()
+
         if not target_user:
             return handler_instance._send_json({"success": False, "message": "User not found"}, 404)
             
@@ -474,16 +529,16 @@ def handle_post_reject_user(handler_instance, query_params, body):
         
         role = target_user.get("role")
         fac_id = target_user.get("faculty_id") or ""
-        email = target_user.get("email") or ""
-        dept = target_user.get("department") or ""
+        u_email = target_user.get("email") or ""
+        u_dept = target_user.get("department") or ""
         stu_id = target_user.get("student_id") or ""
 
         if role == "Faculty":
-            cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE id = %s OR email = %s", (fac_id, email))
+            cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE id = %s OR (email = %s AND email != '')", (fac_id, u_email))
         elif role == "HOD":
-            cursor.execute("UPDATE hods SET status = 'Rejected' WHERE faculty_id = %s OR department = %s OR email = %s", (fac_id, dept, email))
+            cursor.execute("UPDATE hods SET status = 'Rejected' WHERE faculty_id = %s OR (department = %s AND department != '') OR (email = %s AND email != '')", (fac_id, u_dept, u_email))
         elif role == "Student":
-            cursor.execute("UPDATE students SET status = 'Rejected' WHERE id = %s OR email = %s", (stu_id, email))
+            cursor.execute("UPDATE students SET status = 'Rejected' WHERE id = %s OR (email = %s AND email != '')", (stu_id, u_email))
             
         conn.commit()
         return handler_instance._send_json({
@@ -538,7 +593,7 @@ def handle_post_user_status(handler_instance, query_params, body):
     if not user or not is_admin(user):
         return handler_instance._send_json({"success": False, "message": "Only Administrators can modify user status"}, 403)
         
-    user_id = body.get("id")
+    user_id = body.get("user_id") or body.get("id")
     new_status = body.get("status")
     
     if not user_id or not new_status or new_status not in ["Active", "Inactive", "Pending", "Rejected"]:
@@ -550,25 +605,31 @@ def handle_post_user_status(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        target_user = cursor.fetchone()
+        target_user = None
+        if str(user_id).isdigit():
+            cursor.execute("SELECT * FROM users WHERE id = %s", (int(user_id),))
+            target_user = cursor.fetchone()
+        if not target_user:
+            cursor.execute("SELECT * FROM users WHERE faculty_id = %s OR student_id = %s OR username = %s OR email = %s", (user_id, user_id, user_id, user_id))
+            target_user = cursor.fetchone()
+
         if not target_user:
             return handler_instance._send_json({"success": False, "message": "User not found"}, 404)
 
-        cursor.execute("UPDATE users SET status = %s WHERE id = %s", (new_status, user_id))
+        cursor.execute("UPDATE users SET status = %s WHERE id = %s", (new_status, target_user["id"]))
 
         role = target_user.get("role")
         fac_id = target_user.get("faculty_id") or ""
-        email = target_user.get("email") or ""
-        dept = target_user.get("department") or ""
+        u_email = target_user.get("email") or ""
+        u_dept = target_user.get("department") or ""
         stu_id = target_user.get("student_id") or ""
 
         if role == "Faculty":
-            cursor.execute("UPDATE faculty SET status = %s WHERE id = %s OR email = %s", (new_status, fac_id, email))
+            cursor.execute("UPDATE faculty SET status = %s WHERE id = %s OR (email = %s AND email != '')", (new_status, fac_id, u_email))
         elif role == "HOD":
-            cursor.execute("UPDATE hods SET status = %s WHERE faculty_id = %s OR department = %s OR email = %s", (new_status, fac_id, dept, email))
+            cursor.execute("UPDATE hods SET status = %s WHERE faculty_id = %s OR (department = %s AND department != '') OR (email = %s AND email != '')", (new_status, fac_id, u_dept, u_email))
         elif role == "Student":
-            cursor.execute("UPDATE students SET status = %s WHERE id = %s OR email = %s", (new_status, stu_id, email))
+            cursor.execute("UPDATE students SET status = %s WHERE id = %s OR (email = %s AND email != '')", (new_status, stu_id, u_email))
 
         conn.commit()
         return handler_instance._send_json({"success": True, "message": f"User status changed to {new_status}."})
@@ -581,6 +642,7 @@ def handle_post_user_status(handler_instance, query_params, body):
 
 register_route('POST', '/api/admin/users/status', handle_post_user_status)
 register_route('POST', '/api/users/status', handle_post_user_status)
+
 
 
 # ----------------------------------------------------

@@ -106,6 +106,7 @@ def handle_get_hods(handler_instance, query_params, body):
             if dept_filter and dept_filter != "All":
                 cursor.execute("""
                     SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
+                           u.id AS user_id, u.username,
                            COALESCE(u.status, h.status, 'Pending') AS status
                     FROM hods h
                     LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
@@ -114,6 +115,7 @@ def handle_get_hods(handler_instance, query_params, body):
             else:
                 cursor.execute("""
                     SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
+                           u.id AS user_id, u.username,
                            COALESCE(u.status, h.status, 'Pending') AS status
                     FROM hods h
                     LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
@@ -121,6 +123,7 @@ def handle_get_hods(handler_instance, query_params, body):
         else:
             cursor.execute("""
                 SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
+                       u.id AS user_id, u.username,
                        COALESCE(u.status, h.status, 'Pending') AS status
                 FROM hods h
                 LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))

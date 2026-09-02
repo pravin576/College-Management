@@ -6,29 +6,32 @@ from router import register_route
 
 def check_duplicate(cursor, mobile, email, username, student_id=None, faculty_id=None, roll_number=None, department=None):
     if username:
-        cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+        cursor.execute("SELECT id FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(%s))", (username,))
         if cursor.fetchone():
             return True, f"Username '{username}' is already registered!"
     if email:
-        cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+        cursor.execute("SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s))", (email,))
         if cursor.fetchone():
             return True, f"Email '{email}' is already registered!"
     if mobile:
-        cursor.execute("SELECT id FROM users WHERE mobile = %s", (mobile,))
+        cursor.execute("SELECT id FROM users WHERE TRIM(mobile) = TRIM(%s)", (mobile,))
         if cursor.fetchone():
-            return True, f"Mobile '{mobile}' is already registered!"
+            return True, f"Mobile number '{mobile}' is already registered!"
     if student_id:
         cursor.execute("SELECT id FROM students WHERE id = %s", (student_id,))
         if cursor.fetchone():
             return True, f"Student ID '{student_id}' is already registered!"
     if roll_number and department:
-        cursor.execute("SELECT id FROM students WHERE roll_number = %s AND department = %s", (roll_number, department))
+        cursor.execute("SELECT id FROM students WHERE roll_number = %s AND LOWER(TRIM(department)) = LOWER(TRIM(%s))", (roll_number, department))
         if cursor.fetchone():
             return True, f"Roll Number '{roll_number}' already exists in department '{department}'!"
     if faculty_id:
         cursor.execute("SELECT id FROM faculty WHERE id = %s", (faculty_id,))
         if cursor.fetchone():
             return True, f"Faculty ID '{faculty_id}' is already registered!"
+        cursor.execute("SELECT id FROM hods WHERE faculty_id = %s", (faculty_id,))
+        if cursor.fetchone():
+            return True, f"HOD/Faculty ID '{faculty_id}' is already registered!"
     return False, ""
 
 def handle_register(handler_instance, query_params, body):
@@ -41,7 +44,7 @@ def handle_register(handler_instance, query_params, body):
     name = body.get("name", "").strip()
     email = body.get("email", "").strip()
     mobile = (body.get("mobile", "") or body.get("phone", "") or body.get("contact", "")).strip()
-    department = body.get("department", "Computer Engineering").strip()
+    department = " ".join((body.get("department", "Computer Engineering") or "").strip().split())
     username = body.get("username", "").strip()
     password = body.get("password", "").strip()
     confirm_password = body.get("confirmPassword", "").strip()
@@ -81,16 +84,20 @@ def handle_register(handler_instance, query_params, body):
     else: # Student
         status = "Active"
 
-    # For HOD, ensure department doesn't already have an assigned HOD
+    # Strictly enforce 1 HOD per department across BOTH users and hods tables
     if role == "HOD":
-        cursor.execute("SELECT id, name FROM hods WHERE department = %s", (department,))
-        existing_hod = cursor.fetchone()
-        if existing_hod:
+        cursor.execute("SELECT id, name FROM hods WHERE LOWER(TRIM(department)) = LOWER(TRIM(%s))", (department,))
+        existing_hod_tbl = cursor.fetchone()
+        
+        cursor.execute("SELECT id, name FROM users WHERE role = 'HOD' AND LOWER(TRIM(department)) = LOWER(TRIM(%s))", (department,))
+        existing_hod_usr = cursor.fetchone()
+
+        if existing_hod_tbl or existing_hod_usr:
             cursor.close()
             conn.close()
             return handler_instance._send_json({
                 "success": False, 
-                "message": f"Department '{department}' already has an assigned HOD ({existing_hod['name']})."
+                "message": "This department already has an HOD."
             }, 400)
 
     is_dup, dup_msg = check_duplicate(cursor, mobile, email, username, student_id, faculty_id, roll_number, department)

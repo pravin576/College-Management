@@ -55,9 +55,8 @@ function renderFacultyTable(facultyList) {
         <td>${f.experience || '1 Year'}</td>
         <td>${statusBadge}</td>
         <td>
-          ${canEdit ? `
             ${isPending ? `
-              <button class="btn btn-sm btn-success me-1" onclick="approveFacultyDirect('${f.id}', '${f.email}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
+              <button class="btn btn-sm btn-success me-1" onclick="approveFacultyDirect('${f.user_id || f.id}', '${f.email}', '${f.id}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
             ` : ''}
             <button class="btn btn-sm btn-outline-primary me-1" onclick="editFaculty('${f.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="deleteFaculty('${f.id}')" title="Delete"><i class="bi bi-trash"></i></button>
@@ -68,10 +67,10 @@ function renderFacultyTable(facultyList) {
   }).join("");
 }
 
-async function approveFacultyDirect(id, email) {
+async function approveFacultyDirect(userId, email, facultyId) {
   const res = await fetchAPI("/api/admin/approve-user", {
     method: "POST",
-    body: JSON.stringify({ id, username: email })
+    body: JSON.stringify({ user_id: userId, id: userId, email: email, faculty_id: facultyId })
   });
   if (res.success) {
     showToast("Faculty account approved and activated successfully!", "success");
@@ -80,6 +79,7 @@ async function approveFacultyDirect(id, email) {
     showToast(res.message || "Approval failed", "danger");
   }
 }
+
 
 function filterFacultyTable() {
   const q = (document.getElementById("searchFacultyInput")?.value || "").toLowerCase();

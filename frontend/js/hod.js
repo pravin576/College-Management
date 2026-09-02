@@ -305,9 +305,8 @@ function renderHodTable(hods) {
         <td>${h.contact}</td>
         <td>${statusBadge}</td>
         <td>
-          ${isAdmin ? `
             ${isPending ? `
-              <button class="btn btn-sm btn-success me-1" onclick="approveHodDirect('${h.id || ''}', '${h.email}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
+              <button class="btn btn-sm btn-success me-1" onclick="approveHodDirect('${h.user_id || h.id || ''}', '${h.email}', '${h.department}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
             ` : ''}
             <button class="btn btn-sm btn-outline-danger" onclick="deleteHod('${h.id || h.department}')" title="Delete"><i class="bi bi-trash"></i> Delete</button>
           ` : `<span class="text-muted small">Assigned HOD</span>`}
@@ -317,10 +316,10 @@ function renderHodTable(hods) {
   }).join("");
 }
 
-async function approveHodDirect(id, email) {
+async function approveHodDirect(userId, email, department) {
   const res = await fetchAPI("/api/admin/approve-user", {
     method: "POST",
-    body: JSON.stringify({ id, username: email })
+    body: JSON.stringify({ user_id: userId, id: userId, email: email, department: department })
   });
   if (res.success) {
     showToast("HOD account approved and activated successfully!", "success");
@@ -329,6 +328,7 @@ async function approveHodDirect(id, email) {
     showToast(res.message || "Approval failed", "danger");
   }
 }
+
 
 async function saveHodForm(e) {
   e.preventDefault();

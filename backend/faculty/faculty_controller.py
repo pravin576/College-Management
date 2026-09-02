@@ -28,6 +28,7 @@ def handle_get_faculty(handler_instance, query_params, body):
             if dept_filter and dept_filter != "All":
                 cursor.execute("""
                     SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
+                           u.id AS user_id, u.username,
                            COALESCE(u.status, f.status, 'Pending') AS status
                     FROM faculty f
                     LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
@@ -37,6 +38,7 @@ def handle_get_faculty(handler_instance, query_params, body):
             else:
                 cursor.execute("""
                     SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
+                           u.id AS user_id, u.username,
                            COALESCE(u.status, f.status, 'Pending') AS status
                     FROM faculty f
                     LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
@@ -45,6 +47,7 @@ def handle_get_faculty(handler_instance, query_params, body):
         else:
             cursor.execute("""
                 SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
+                       u.id AS user_id, u.username,
                        COALESCE(u.status, f.status, 'Pending') AS status
                 FROM faculty f
                 LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))

@@ -219,7 +219,7 @@ def run_tests():
         "confirmPassword": "HODPassword@123"
     }
     status, res, _ = make_req("POST", "/api/register", second_hod_payload)
-    assert status == 400 and "already has an assigned hod" in res.get("message", "").lower(), f"Second HOD should be rejected: {status}, {res}"
+    assert status == 400 and "already has an hod" in res.get("message", "").lower(), f"Second HOD should be rejected: {status}, {res}"
     print("[PASS] 2.F Department-wise single HOD constraint verified (Second HOD rejected)")
 
     # B. Admin Approves HOD

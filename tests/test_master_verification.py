@@ -235,6 +235,11 @@ def run_all_tests():
     # --- SECTION 4: CRUD OPERATIONS & SAFE TRANSACTIONS ---
     print("\n[SECTION 4: CRUD OPERATIONS & SAFE TRANSACTIONS]")
 
+    # Assign Student to Faculty
+    status, res, _ = make_req("POST", "/api/faculty-students/assign", {"facultyId": f"FAC_{ts}", "studentIds": [f"STU_{ts}"]}, headers=admin_headers)
+    assert status == 200 and res.get("success"), f"Assign student to faculty failed: {res}"
+    print(f"[PASS] 4.0 Admin assigned Student STU_{ts} to Faculty FAC_{ts}")
+
     # Test 4.1: Add Attendance
     att_payload = {
         "studentId": f"STU_{ts}",

@@ -6,7 +6,7 @@ import time
 import os
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student
+from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student, is_student_assigned_to_faculty
 from core.excel_utils import create_attendance_template_xlsx, parse_xlsx_bytes
 
 def handle_get_attendance_excel_template(handler_instance, query_params, body):
@@ -29,6 +29,7 @@ def handle_get_attendance_export(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
     student_id = user.get('student_id')
+    faculty_id = user.get('faculty_id')
 
     conn = get_db_connection()
     if not conn:
@@ -40,7 +41,15 @@ def handle_get_attendance_export(handler_instance, query_params, body):
     try:
         if role == "Student":
             cursor.execute("SELECT * FROM attendance WHERE student_id = %s ORDER BY date DESC", (student_id,))
-        elif role in ["HOD", "Faculty"]:
+        elif role == "Faculty":
+            cursor.execute(
+                """SELECT a.* FROM attendance a
+                   JOIN faculty_students fs ON a.student_id = fs.student_id
+                   WHERE fs.faculty_id = %s
+                   ORDER BY a.date DESC""",
+                (faculty_id,)
+            )
+        elif role == "HOD":
             cursor.execute("SELECT * FROM attendance WHERE department = %s ORDER BY date DESC", (user_dept,))
         else:
             if dept_f and dept_f != "All":
@@ -89,21 +98,27 @@ def handle_get_attendance(handler_instance, query_params, body):
     search_q = query_params.get("search", [None])[0]
 
     try:
-        sql = "SELECT a.* FROM attendance a"
+        sql = "SELECT DISTINCT a.* FROM attendance a"
+        joins = []
         where_clauses = []
         params = []
 
         if role == "Student":
             where_clauses.append("a.student_id = %s")
             params.append(student_id)
+        elif role == "Faculty":
+            joins.append("JOIN faculty_students fs ON a.student_id = fs.student_id")
+            where_clauses.append("fs.faculty_id = %s")
+            params.append(faculty_id or "")
+        elif role == "HOD":
+            where_clauses.append("a.department = %s")
+            params.append(user_dept)
         else:
-            if role in ["HOD", "Faculty"]:
-                where_clauses.append("a.department = %s")
-                params.append(user_dept)
-            elif dept_f and dept_f != "All":
+            if dept_f and dept_f != "All":
                 where_clauses.append("a.department = %s")
                 params.append(dept_f)
 
+        if role != "Student":
             if year_f and year_f != "All":
                 where_clauses.append("a.year = %s")
                 params.append(year_f)
@@ -134,6 +149,8 @@ def handle_get_attendance(handler_instance, query_params, body):
                 params.extend([sq, sq, sq])
 
         full_sql = sql
+        if joins:
+            full_sql += " " + " ".join(joins)
         if where_clauses:
             full_sql += " WHERE " + " AND ".join(where_clauses)
         full_sql += " ORDER BY a.date DESC, a.student_id ASC"
@@ -245,10 +262,16 @@ def handle_post_attendance_import_excel(handler_instance, query_params, body):
             target_dept = dept if dept else stu_row["department"]
             target_name = name if name else stu_row["name"]
 
-            if role in ["HOD", "Faculty"] and target_dept != user_dept:
-                fail_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Unauthorized department '{target_dept}'. Restricted to '{user_dept}'."})
-                continue
+            if role == "Faculty":
+                if not is_student_assigned_to_faculty(cursor, user.get("faculty_id"), stu_id):
+                    fail_cnt += 1
+                    errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": "Student is not assigned to you."})
+                    continue
+            elif role == "HOD":
+                if target_dept != user_dept:
+                    fail_cnt += 1
+                    errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Unauthorized department '{target_dept}'. Restricted to '{user_dept}'."})
+                    continue
 
             att_key = (stu_id, subject, att_date)
             if att_key in seen_att:
@@ -295,14 +318,14 @@ def handle_post_attendance(handler_instance, query_params, body):
 
     role = user.get('role')
     user_dept = user.get('department')
+    faculty_id = user.get('faculty_id')
     att_id = body.get("id")
     s_id = (body.get("studentId") or body.get("student_id") or "").strip()
     s_name = (body.get("studentName") or body.get("student_name") or "Student").strip()
-    dept = user_dept if role in ["HOD", "Faculty"] else (body.get("department") or "Computer Engineering").strip()
     subject = (body.get("subject") or "General").strip()
     att_date = body.get("date") or time.strftime('%Y-%m-%d')
     status = body.get("status", "Present")
-    f_id = user.get("faculty_id") or user.get("username")
+    f_id = faculty_id or user.get("username")
 
     if not s_id:
         return handler_instance._send_json({"success": False, "message": "Student ID is required"}, 400)
@@ -313,20 +336,47 @@ def handle_post_attendance(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        if role == "Faculty":
-            cursor.execute("SELECT id FROM students WHERE id = %s AND department = %s", (s_id, user_dept))
-            if not cursor.fetchone():
-                return handler_instance._send_json({"success": False, "message": "Cannot mark attendance for students outside your department"}, 403)
+        cursor.execute("SELECT id, name, department, year, semester, division FROM students WHERE id = %s", (s_id,))
+        stu_row = cursor.fetchone()
+        if not stu_row:
+            return handler_instance._send_json({"success": False, "message": "Student record not found"}, 404)
+
+        if s_name == "Student" and stu_row.get("name"):
+            s_name = stu_row["name"]
+
+        dept = stu_row.get("department") or user_dept
+        year = stu_row.get("year", "First Year")
+        sem = stu_row.get("semester", "Semester 1")
+        div = stu_row.get("division", "A")
 
         if att_id:
+            cursor.execute("SELECT * FROM attendance WHERE id = %s", (att_id,))
+            existing_att = cursor.fetchone()
+            if not existing_att:
+                return handler_instance._send_json({"success": False, "message": "Attendance record not found"}, 404)
+
+            if role == "Faculty":
+                if not is_student_assigned_to_faculty(cursor, faculty_id, existing_att["student_id"]) or not is_student_assigned_to_faculty(cursor, faculty_id, s_id):
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only modify attendance for assigned students"}, 403)
+            elif role == "HOD":
+                if existing_att.get("department") != user_dept or stu_row.get("department") != user_dept:
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only modify attendance in your department"}, 403)
+
             cursor.execute(
-                "UPDATE attendance SET student_id=%s, student_name=%s, subject=%s, date=%s, status=%s, department=%s WHERE id=%s",
-                (s_id, s_name, subject, att_date, status, dept, att_id)
+                "UPDATE attendance SET student_id=%s, student_name=%s, subject=%s, date=%s, status=%s, department=%s, year=%s, semester=%s, division=%s WHERE id=%s",
+                (s_id, s_name, subject, att_date, status, dept, year, sem, div, att_id)
             )
         else:
+            if role == "Faculty":
+                if not is_student_assigned_to_faculty(cursor, faculty_id, s_id):
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only mark attendance for assigned students"}, 403)
+            elif role == "HOD":
+                if stu_row.get("department") != user_dept:
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only mark attendance for students in your department"}, 403)
+
             cursor.execute(
-                "INSERT INTO attendance (student_id, student_name, subject, date, status, faculty_id, department) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (s_id, s_name, subject, att_date, status, f_id, dept)
+                "INSERT INTO attendance (student_id, student_name, subject, date, status, faculty_id, department, year, semester, division) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (s_id, s_name, subject, att_date, status, f_id, dept, year, sem, div)
             )
         conn.commit()
         return handler_instance._send_json({"success": True, "message": "Attendance record saved successfully!"})
@@ -346,6 +396,7 @@ def handle_delete_attendance(handler_instance, query_params, body):
 
     role = user.get('role')
     user_dept = user.get('department')
+    faculty_id = user.get('faculty_id')
     item_id = query_params.get("id", [None])[0] or body.get("id")
 
     if not item_id:
@@ -362,8 +413,12 @@ def handle_delete_attendance(handler_instance, query_params, body):
         if not att:
             return handler_instance._send_json({"success": False, "message": "Attendance record not found"}, 404)
 
-        if role in ["HOD", "Faculty"] and att.get("department") != user_dept:
-            return handler_instance._send_json({"success": False, "message": "Cannot delete attendance outside your department"}, 403)
+        if role == "Faculty":
+            if not is_student_assigned_to_faculty(cursor, faculty_id, att["student_id"]):
+                return handler_instance._send_json({"success": False, "message": "Permission denied: You can only delete attendance for assigned students"}, 403)
+        elif role == "HOD":
+            if att.get("department") != user_dept:
+                return handler_instance._send_json({"success": False, "message": "Permission denied: Cannot delete attendance outside your department"}, 403)
 
         cursor.execute("DELETE FROM attendance WHERE id = %s", (item_id,))
         conn.commit()

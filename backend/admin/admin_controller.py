@@ -33,6 +33,7 @@ def handle_get_reports_data(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
     student_id = user.get('student_id')
+    faculty_id = user.get('faculty_id')
     
     conn = get_db_connection()
     if not conn:
@@ -52,10 +53,23 @@ def handle_get_reports_data(handler_instance, query_params, body):
             if role == "Student":
                 sql = "SELECT * FROM students WHERE id = %s"
                 cursor.execute(sql, (student_id,))
+            elif role == "Faculty":
+                sql = """SELECT DISTINCT s.* FROM students s
+                         JOIN faculty_students fs ON s.id = fs.student_id
+                         WHERE fs.faculty_id = %s"""
+                p = [faculty_id or ""]
+                if year_f and year_f != "All":
+                    sql += " AND s.year = %s"
+                    p.append(year_f)
+                if search_q:
+                    sql += " AND (s.name LIKE %s OR s.id LIKE %s OR s.roll_number LIKE %s)"
+                    p.extend([f"%{search_q}%", f"%{search_q}%", f"%{search_q}%"])
+                sql += " ORDER BY s.department, s.year, s.name"
+                cursor.execute(sql, tuple(p))
             else:
                 sql = "SELECT * FROM students WHERE 1=1"
                 p = []
-                if role in ["HOD", "Faculty"]:
+                if role == "HOD":
                     sql += " AND department = %s"
                     p.append(user_dept)
                 elif dept_f and dept_f != "All":
@@ -93,10 +107,15 @@ def handle_get_reports_data(handler_instance, query_params, body):
             if role == "Student":
                 sql = "SELECT * FROM attendance WHERE student_id = %s ORDER BY date DESC"
                 cursor.execute(sql, (student_id,))
+            elif role == "Faculty":
+                sql = """SELECT DISTINCT a.* FROM attendance a
+                         JOIN faculty_students fs ON a.student_id = fs.student_id
+                         WHERE fs.faculty_id = %s ORDER BY a.date DESC"""
+                cursor.execute(sql, (faculty_id or "",))
             else:
                 sql = "SELECT * FROM attendance WHERE 1=1"
                 p = []
-                if role in ["HOD", "Faculty"]:
+                if role == "HOD":
                     sql += " AND department = %s"
                     p.append(user_dept)
                 elif dept_f and dept_f != "All":
@@ -111,10 +130,16 @@ def handle_get_reports_data(handler_instance, query_params, body):
             if role == "Student":
                 sql = "SELECT * FROM results WHERE student_id = %s"
                 cursor.execute(sql, (student_id,))
+            elif role == "Faculty":
+                sql = """SELECT r.*, s.department, s.year FROM results r
+                         JOIN students s ON r.student_id = s.id
+                         JOIN faculty_students fs ON s.id = fs.student_id
+                         WHERE fs.faculty_id = %s"""
+                cursor.execute(sql, (faculty_id or "",))
             else:
                 sql = "SELECT r.*, s.department, s.year FROM results r JOIN students s ON r.student_id = s.id WHERE 1=1"
                 p = []
-                if role in ["HOD", "Faculty"]:
+                if role == "HOD":
                     sql += " AND s.department = %s"
                     p.append(user_dept)
                 elif dept_f and dept_f != "All":
@@ -161,6 +186,7 @@ def handle_get_reports_export(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
     student_id = user.get('student_id')
+    faculty_id = user.get('faculty_id')
     
     conn = get_db_connection()
     if not conn:
@@ -178,10 +204,15 @@ def handle_get_reports_export(handler_instance, query_params, body):
             if role == "Student":
                 sql = "SELECT * FROM students WHERE id = %s"
                 cursor.execute(sql, (student_id,))
+            elif role == "Faculty":
+                sql = """SELECT DISTINCT s.* FROM students s
+                         JOIN faculty_students fs ON s.id = fs.student_id
+                         WHERE fs.faculty_id = %s ORDER BY s.department, s.year, s.name"""
+                cursor.execute(sql, (faculty_id or "",))
             else:
                 sql = "SELECT * FROM students WHERE 1=1"
                 p = []
-                if role in ["HOD", "Faculty"]:
+                if role == "HOD":
                     sql += " AND department = %s"
                     p.append(user_dept)
                 elif dept_f and dept_f != "All":
@@ -236,6 +267,7 @@ def handle_post_dashboard_stats(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
     student_id = user.get('student_id')
+    faculty_id = user.get('faculty_id')
     
     conn = get_db_connection()
     if not conn:
@@ -275,14 +307,17 @@ def handle_post_dashboard_stats(handler_instance, query_params, body):
             stats["totalPendingFees"] = float(row["pending"] or 0)
 
         elif role == "Faculty":
-            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (user_dept,))
-            stats["totalStudents"] = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (user_dept,))
-            stats["totalNotices"] = cursor.fetchone()["count"]
-            fac_id = user.get("faculty_id")
+            fac_id = faculty_id or ""
             if fac_id:
                 cursor.execute("SELECT COUNT(*) as count FROM faculty_students WHERE faculty_id = %s", (fac_id,))
-                stats["assignedStudentsCount"] = cursor.fetchone()["count"]
+                assigned_cnt = cursor.fetchone()["count"]
+                stats["totalStudents"] = assigned_cnt
+                stats["assignedStudentsCount"] = assigned_cnt
+            else:
+                stats["totalStudents"] = 0
+                stats["assignedStudentsCount"] = 0
+            cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (user_dept,))
+            stats["totalNotices"] = cursor.fetchone()["count"]
 
         elif role == "Student":
             cursor.execute("SELECT COUNT(*) as count FROM notices WHERE (department = %s OR department = 'All') AND (target_role = 'Student' OR target_role = 'All')", (user_dept,))

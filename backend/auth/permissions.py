@@ -71,3 +71,22 @@ def require_role(allowed_roles):
             return func(handler_instance, query_params, body)
         return wrapper
     return decorator
+
+def is_student_assigned_to_faculty(cursor, faculty_id, student_id):
+    """
+    Check if a student is assigned to a faculty member.
+    """
+    if not faculty_id or not student_id:
+        return False
+    cursor.execute("SELECT 1 FROM faculty_students WHERE faculty_id = %s AND student_id = %s", (faculty_id, student_id))
+    return cursor.fetchone() is not None
+
+def is_student_in_department(cursor, student_id, department):
+    """
+    Check if a student belongs to a specific department.
+    """
+    if not student_id or not department:
+        return False
+    cursor.execute("SELECT 1 FROM students WHERE id = %s AND department = %s", (student_id, department))
+    return cursor.fetchone() is not None
+

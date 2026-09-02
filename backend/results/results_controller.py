@@ -7,7 +7,7 @@ import os
 import re
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student
+from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student, is_student_assigned_to_faculty
 from core.excel_utils import create_results_template_xlsx, parse_xlsx_bytes
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,6 +35,7 @@ def handle_get_results(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
     student_id = user.get('student_id')
+    faculty_id = user.get('faculty_id')
 
     conn = get_db_connection()
     if not conn:
@@ -44,12 +45,32 @@ def handle_get_results(handler_instance, query_params, body):
     try:
         if role == "Student":
             cursor.execute("SELECT * FROM results WHERE student_id = %s ORDER BY semester, subject", (student_id,))
-        elif role in ["HOD", "Faculty"]:
-            cursor.execute("SELECT r.* FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s ORDER BY r.student_id, r.semester", (user_dept,))
+        elif role == "Faculty":
+            cursor.execute(
+                """SELECT r.* FROM results r
+                   JOIN faculty_students fs ON r.student_id = fs.student_id
+                   WHERE fs.faculty_id = %s
+                   ORDER BY r.student_id, r.semester""",
+                (faculty_id,)
+            )
+        elif role == "HOD":
+            cursor.execute(
+                """SELECT r.* FROM results r
+                   JOIN students s ON r.student_id = s.id
+                   WHERE s.department = %s
+                   ORDER BY r.student_id, r.semester""",
+                (user_dept,)
+            )
         else: # Admin
             dept_filter = query_params.get("department", [None])[0]
             if dept_filter and dept_filter != "All":
-                cursor.execute("SELECT r.* FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s ORDER BY r.student_id, r.semester", (dept_filter,))
+                cursor.execute(
+                    """SELECT r.* FROM results r
+                       JOIN students s ON r.student_id = s.id
+                       WHERE s.department = %s
+                       ORDER BY r.student_id, r.semester""",
+                    (dept_filter,)
+                )
             else:
                 cursor.execute("SELECT * FROM results ORDER BY student_id, semester")
         recs = [dict(r) for r in cursor.fetchall()]
@@ -68,6 +89,7 @@ def handle_get_results_export(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
     student_id = user.get('student_id')
+    faculty_id = user.get('faculty_id')
 
     conn = get_db_connection()
     if not conn:
@@ -78,17 +100,26 @@ def handle_get_results_export(handler_instance, query_params, body):
     sem_f = query_params.get("semester", [None])[0]
 
     try:
-        sql = "SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE 1=1"
         params = []
         if role == "Student":
-            sql += " AND r.student_id = %s"
+            sql = "SELECT r.*, '' as department FROM results r WHERE r.student_id = %s"
             params.append(student_id)
-        elif role in ["HOD", "Faculty"]:
-            sql += " AND (s.department = %s OR s.department IS NULL)"
+        elif role == "Faculty":
+            sql = """SELECT r.*, s.department FROM results r
+                     JOIN students s ON r.student_id = s.id
+                     JOIN faculty_students fs ON s.id = fs.student_id
+                     WHERE fs.faculty_id = %s"""
+            params.append(faculty_id)
+        elif role == "HOD":
+            sql = """SELECT r.*, s.department FROM results r
+                     JOIN students s ON r.student_id = s.id
+                     WHERE s.department = %s"""
             params.append(user_dept)
-        elif dept_f and dept_f != "All":
-            sql += " AND s.department = %s"
-            params.append(dept_f)
+        else:
+            sql = "SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE 1=1"
+            if dept_f and dept_f != "All":
+                sql += " AND s.department = %s"
+                params.append(dept_f)
 
         if sem_f and sem_f != "All":
             sql += " AND r.semester = %s"
@@ -207,10 +238,16 @@ def handle_post_results_import_excel(handler_instance, query_params, body):
             target_name = name if name else (stu_row["name"] if stu_row else "Student")
             target_dept = dept if dept else (stu_row["department"] if stu_row else user_dept)
 
-            if role in ["HOD", "Faculty"] and target_dept != user_dept:
-                fail_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Unauthorized department '{target_dept}'. Restricted to '{user_dept}'."})
-                continue
+            if role == "Faculty":
+                if not is_student_assigned_to_faculty(cursor, faculty_id, stu_id):
+                    fail_cnt += 1
+                    errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": "Student is not assigned to you."})
+                    continue
+            elif role == "HOD":
+                if target_dept != user_dept:
+                    fail_cnt += 1
+                    errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": f"Unauthorized department '{target_dept}'. Restricted to '{user_dept}'."})
+                    continue
 
             res_key = (stu_id, subject, sem)
             if res_key in seen_results:
@@ -268,6 +305,10 @@ def handle_post_results_upload_document(handler_instance, query_params, body):
     if is_student(user):
         return handler_instance._send_json({"success": False, "message": "Students cannot upload documents"}, 403)
 
+    role = user.get('role')
+    user_dept = user.get('department')
+    faculty_id = user.get('faculty_id')
+
     res_id = body.get("result_id") or body.get("id")
     file_b64 = body.get("file_base64") or body.get("file")
     file_name = body.get("file_name", "marksheet.png")
@@ -284,6 +325,18 @@ def handle_post_results_upload_document(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
+        cursor.execute("SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE r.id = %s", (res_id,))
+        row = cursor.fetchone()
+        if not row:
+            return handler_instance._send_json({"success": False, "message": "Result record not found"}, 404)
+
+        if role == "Faculty":
+            if not is_student_assigned_to_faculty(cursor, faculty_id, row["student_id"]):
+                return handler_instance._send_json({"success": False, "message": "Permission denied: Student not assigned to you"}, 403)
+        elif role == "HOD":
+            if row.get("department") != user_dept:
+                return handler_instance._send_json({"success": False, "message": "Permission denied: Student not in your department"}, 403)
+
         raw_bytes = base64.b64decode(file_b64)
         ext = os.path.splitext(file_name)[1].lower() or ".png"
         safe_filename = f"marksheet_{res_id}_{int(time.time())}{ext}"
@@ -309,6 +362,10 @@ def handle_post_results(handler_instance, query_params, body):
     if not user or is_student(user):
         return handler_instance._send_json({"success": False, "message": "Permission denied: Students cannot enter exam results"}, 403)
 
+    role = user.get('role')
+    user_dept = user.get('department')
+    faculty_id = user.get('faculty_id')
+
     res_id = body.get("id")
     s_id = (body.get("studentId") or body.get("student_id") or "").strip()
     s_name = (body.get("studentName") or body.get("student_name") or "Student").strip()
@@ -330,13 +387,40 @@ def handle_post_results(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
+        cursor.execute("SELECT id, name, department FROM students WHERE id = %s", (s_id,))
+        stu_row = cursor.fetchone()
+        if not stu_row:
+            return handler_instance._send_json({"success": False, "message": "Student record not found"}, 404)
+
+        if s_name == "Student" and stu_row.get("name"):
+            s_name = stu_row["name"]
+
         if res_id:
+            cursor.execute("SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE r.id = %s", (res_id,))
+            existing_res = cursor.fetchone()
+            if not existing_res:
+                return handler_instance._send_json({"success": False, "message": "Result record not found"}, 404)
+
+            if role == "Faculty":
+                if not is_student_assigned_to_faculty(cursor, faculty_id, existing_res["student_id"]) or not is_student_assigned_to_faculty(cursor, faculty_id, s_id):
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only modify results for assigned students"}, 403)
+            elif role == "HOD":
+                if existing_res.get("department") != user_dept or stu_row.get("department") != user_dept:
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only modify results in your department"}, 403)
+
             cursor.execute(
                 """UPDATE results SET student_id=%s, student_name=%s, subject=%s, semester=%s, internal_marks=%s, end_sem_marks=%s, total_marks=%s, percentage=%s, grade=%s, status=%s
                    WHERE id=%s""",
                 (s_id, s_name, subject, semester, internal, end_sem, total, percentage, grade, res_status, res_id)
             )
         else:
+            if role == "Faculty":
+                if not is_student_assigned_to_faculty(cursor, faculty_id, s_id):
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only create results for assigned students"}, 403)
+            elif role == "HOD":
+                if stu_row.get("department") != user_dept:
+                    return handler_instance._send_json({"success": False, "message": "Permission denied: You can only create results for students in your department"}, 403)
+
             cursor.execute(
                 """INSERT INTO results (student_id, student_name, subject, semester, internal_marks, end_sem_marks, total_marks, percentage, grade, status, document)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '')""",
@@ -362,6 +446,7 @@ def handle_delete_results(handler_instance, query_params, body):
 
     role = user.get('role')
     user_dept = user.get('department')
+    faculty_id = user.get('faculty_id')
     item_id = query_params.get("id", [None])[0] or body.get("id")
 
     if not item_id:
@@ -378,8 +463,12 @@ def handle_delete_results(handler_instance, query_params, body):
         if not row:
             return handler_instance._send_json({"success": False, "message": "Result record not found"}, 404)
 
-        if role in ["HOD", "Faculty"] and row.get("department") != user_dept:
-            return handler_instance._send_json({"success": False, "message": "Cannot delete exam result outside your department"}, 403)
+        if role == "Faculty":
+            if not is_student_assigned_to_faculty(cursor, faculty_id, row["student_id"]):
+                return handler_instance._send_json({"success": False, "message": "Permission denied: You can only delete results for assigned students"}, 403)
+        elif role == "HOD":
+            if row.get("department") != user_dept:
+                return handler_instance._send_json({"success": False, "message": "Cannot delete exam result outside your department"}, 403)
 
         cursor.execute("DELETE FROM results WHERE id = %s", (item_id,))
         conn.commit()

@@ -6,7 +6,7 @@ import time
 import os
 from config.database import get_db_connection
 from router import register_route
-from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student
+from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student, is_student_assigned_to_faculty
 from auth.utils import hash_password
 from core.excel_utils import create_student_template_xlsx, parse_xlsx_bytes
 
@@ -60,15 +60,11 @@ def handle_get_students(handler_instance, query_params, body):
             where_clauses = []
             params = []
 
-            # Faculty role handling
+            # Faculty role handling: Faculty can ONLY access assigned students
             if role == "Faculty":
-                if assigned_only == "true" or not dept_f or dept_f == "All":
-                    joins.append("JOIN faculty_students fs ON s.id = fs.student_id")
-                    where_clauses.append("fs.faculty_id = %s")
-                    params.append(faculty_id)
-                else:
-                    where_clauses.append("s.department = %s")
-                    params.append(user_dept)
+                joins.append("JOIN faculty_students fs ON s.id = fs.student_id")
+                where_clauses.append("fs.faculty_id = %s")
+                params.append(faculty_id or "")
             elif role == "HOD":
                 where_clauses.append("s.department = %s")
                 params.append(user_dept)
@@ -177,6 +173,7 @@ def handle_get_students_id_card(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
     student_id = user.get('student_id')
+    faculty_id = user.get('faculty_id')
 
     target_id = query_params.get("id", [student_id])[0]
     if role == "Student" and target_id != student_id:
@@ -194,6 +191,10 @@ def handle_get_students_id_card(handler_instance, query_params, body):
             return handler_instance._send_json({"success": False, "message": "Student record not found"}, 404)
         
         s = dict(s_row)
+        if role == "Faculty":
+            if not is_student_assigned_to_faculty(cursor, faculty_id, target_id):
+                return handler_instance._send_json({"success": False, "message": "Faculty can only access assigned students' ID card"}, 403)
+
         if role == "HOD" and s["department"] != user_dept:
             return handler_instance._send_json({"success": False, "message": "Cannot access student ID card outside your department"}, 403)
 
@@ -519,8 +520,8 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
 
-    if role == "Student":
-        return handler_instance._send_json({"success": False, "message": "Students are not permitted to import data"}, 403)
+    if not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Admin and HOD can import student records"}, 403)
 
     file_b64 = body.get("file_base64") or body.get("file")
     if not file_b64:

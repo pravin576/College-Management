@@ -55,6 +55,7 @@ function renderFacultyTable(facultyList) {
         <td>${f.experience || '1 Year'}</td>
         <td>${statusBadge}</td>
         <td>
+          ${canEdit ? `
             ${isPending ? `
               <button class="btn btn-sm btn-success me-1" onclick="approveFacultyDirect('${f.user_id || f.id}', '${f.email}', '${f.id}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
             ` : ''}

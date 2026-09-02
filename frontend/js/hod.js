@@ -305,6 +305,7 @@ function renderHodTable(hods) {
         <td>${h.contact}</td>
         <td>${statusBadge}</td>
         <td>
+          ${isAdmin ? `
             ${isPending ? `
               <button class="btn btn-sm btn-success me-1" onclick="approveHodDirect('${h.user_id || h.id || ''}', '${h.email}', '${h.department}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
             ` : ''}

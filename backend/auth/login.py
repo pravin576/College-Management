@@ -5,8 +5,9 @@ from auth.utils import verify_password
 from router import register_route
 
 def handle_login(handler_instance, query_params, body):
-    username_or_email = body.get("username", "").strip()
+    username_or_email = (body.get("username", "") or body.get("email", "")).strip()
     password = body.get("password", "").strip()
+    requested_role = (body.get("role", "") or "All").strip()
     
     if not username_or_email or not password:
         return handler_instance._send_json({"success": False, "message": "Username/Email and Password are required"}, 400)
@@ -18,20 +19,25 @@ def handle_login(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        if "@" in username_or_email:
-            cursor.execute("SELECT * FROM users WHERE email = %s", (username_or_email,))
-        else:
-            cursor.execute("SELECT * FROM users WHERE username = %s", (username_or_email,))
-            
+        # Find user by username OR email
+        cursor.execute("SELECT * FROM users WHERE username = %s OR email = %s", (username_or_email, username_or_email))
         user = cursor.fetchone()
         
         if not user:
             return handler_instance._send_json({"success": False, "message": "Invalid credentials"}, 401)
             
+        # Role validation if specified in the login request (e.g. from role dropdown)
+        if requested_role and requested_role not in ["All", "All Roles"]:
+            req_role_norm = "Administrator" if requested_role.lower() in ["admin", "administrator"] else requested_role.capitalize()
+            user_role_norm = "Administrator" if user["role"].lower() in ["admin", "administrator"] else user["role"].capitalize()
+            if req_role_norm != user_role_norm:
+                return handler_instance._send_json({"success": False, "message": f"Selected role '{requested_role}' does not match this user account"}, 401)
+
         if not verify_password(user['password'], password):
             return handler_instance._send_json({"success": False, "message": "Invalid credentials"}, 401)
             
-        status = user.get("status", "Active")
+        # Verify user status
+        status = (user.get("status") or "Active").strip().capitalize()
         if status == "Pending":
             return handler_instance._send_json({
                 "success": False, 

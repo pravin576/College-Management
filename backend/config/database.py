@@ -75,8 +75,18 @@ def init_db():
                 cursor.execute("SHOW COLUMNS FROM faculty LIKE 'status'")
                 if not cursor.fetchone():
                     cursor.execute("ALTER TABLE faculty ADD COLUMN status VARCHAR(50) DEFAULT 'Active'")
+
+                cursor.execute("SHOW COLUMNS FROM hods LIKE 'status'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE hods ADD COLUMN status VARCHAR(50) DEFAULT 'Active'")
+
+                # Synchronize any existing mismatched statuses between users and role tables
+                cursor.execute("UPDATE users u JOIN faculty f ON (u.faculty_id = f.id OR u.email = f.email) SET u.status = f.status WHERE f.status = 'Active' AND u.status = 'Pending'")
+                cursor.execute("UPDATE faculty f JOIN users u ON (f.id = u.faculty_id OR f.email = u.email) SET f.status = u.status WHERE u.status = 'Pending' AND f.status = 'Active'")
+                cursor.execute("UPDATE users u JOIN hods h ON (u.faculty_id = h.faculty_id OR u.department = h.department OR u.email = h.email) SET u.status = h.status WHERE h.status = 'Active' AND u.status = 'Pending'")
+                cursor.execute("UPDATE hods h JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR h.email = u.email) SET h.status = u.status WHERE u.status = 'Pending' AND h.status = 'Active'")
             except Exception as e:
-                print(f"Notice on column migration: {e}")
+                print(f"Notice on column migration / status synchronization: {e}")
 
             # Seed default departments if table is empty
             try:

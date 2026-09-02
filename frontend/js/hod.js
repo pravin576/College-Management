@@ -286,21 +286,48 @@ function renderHodTable(hods) {
   const user = getSession() || {};
   const isAdmin = ["Administrator", "Admin"].includes(user.role);
 
-  tbody.innerHTML = hods.map(h => `
-    <tr>
-      <td class="fw-bold"><span class="badge bg-secondary">${h.department}</span></td>
-      <td class="fw-semibold">${h.name}</td>
-      <td>${h.qualification || 'Ph.D.'}</td>
-      <td>${h.experience || '10 Years'}</td>
-      <td>${h.email}</td>
-      <td>${h.contact}</td>
-      <td>
-        ${isAdmin ? `
-          <button class="btn btn-sm btn-outline-danger" onclick="deleteHod('${h.id || h.department}')" title="Delete"><i class="bi bi-trash"></i> Delete HOD</button>
-        ` : `<span class="text-muted small">Assigned HOD</span>`}
-      </td>
-    </tr>
-  `).join("");
+  tbody.innerHTML = hods.map(h => {
+    const isPending = (h.status || "").toLowerCase() === "pending";
+    const isInactive = (h.status || "").toLowerCase() === "inactive" || (h.status || "").toLowerCase() === "rejected";
+    const statusBadge = isPending 
+      ? `<span class="badge bg-warning text-dark fw-bold">PENDING</span>` 
+      : isInactive 
+        ? `<span class="badge bg-danger">${(h.status || 'INACTIVE').toUpperCase()}</span>` 
+        : `<span class="badge bg-success">ACTIVE</span>`;
+
+    return `
+      <tr>
+        <td class="fw-bold"><span class="badge bg-secondary">${h.department}</span></td>
+        <td class="fw-semibold">${h.name}</td>
+        <td>${h.qualification || 'Ph.D.'}</td>
+        <td>${h.experience || '10 Years'}</td>
+        <td>${h.email}</td>
+        <td>${h.contact}</td>
+        <td>${statusBadge}</td>
+        <td>
+          ${isAdmin ? `
+            ${isPending ? `
+              <button class="btn btn-sm btn-success me-1" onclick="approveHodDirect('${h.id || ''}', '${h.email}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
+            ` : ''}
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteHod('${h.id || h.department}')" title="Delete"><i class="bi bi-trash"></i> Delete</button>
+          ` : `<span class="text-muted small">Assigned HOD</span>`}
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function approveHodDirect(id, email) {
+  const res = await fetchAPI("/api/admin/approve-user", {
+    method: "POST",
+    body: JSON.stringify({ id, username: email })
+  });
+  if (res.success) {
+    showToast("HOD account approved and activated successfully!", "success");
+    loadHodData();
+  } else {
+    showToast(res.message || "Approval failed", "danger");
+  }
 }
 
 async function saveHodForm(e) {

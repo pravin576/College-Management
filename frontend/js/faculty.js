@@ -35,24 +35,50 @@ function renderFacultyTable(facultyList) {
   const user = getSession() || {};
   const canEdit = ["Administrator", "Admin", "HOD"].includes(user.role);
 
-  tbody.innerHTML = facultyList.map(f => `
-    <tr>
-      <td class="fw-bold">${f.id}</td>
-      <td class="fw-semibold">${f.name}</td>
-      <td><span class="badge bg-secondary">${f.department}</span></td>
-      <td>${f.designation}</td>
-      <td>${f.email}</td>
-      <td>${f.mobile}</td>
-      <td>${f.experience || '1 Year'}</td>
-      <td><span class="badge bg-success">${f.status || 'Active'}</span></td>
-      <td>
-        ${canEdit ? `
-          <button class="btn btn-sm btn-outline-primary me-1" onclick="editFaculty('${f.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger" onclick="deleteFaculty('${f.id}')" title="Delete"><i class="bi bi-trash"></i></button>
-        ` : `<span class="text-muted small">View Only</span>`}
-      </td>
-    </tr>
-  `).join("");
+  tbody.innerHTML = facultyList.map(f => {
+    const isPending = (f.status || "").toLowerCase() === "pending";
+    const isInactive = (f.status || "").toLowerCase() === "inactive" || (f.status || "").toLowerCase() === "rejected";
+    const statusBadge = isPending 
+      ? `<span class="badge bg-warning text-dark fw-bold">PENDING</span>` 
+      : isInactive 
+        ? `<span class="badge bg-danger">${(f.status || 'INACTIVE').toUpperCase()}</span>` 
+        : `<span class="badge bg-success">ACTIVE</span>`;
+
+    return `
+      <tr>
+        <td class="fw-bold">${f.id}</td>
+        <td class="fw-semibold">${f.name}</td>
+        <td><span class="badge bg-secondary">${f.department}</span></td>
+        <td>${f.designation}</td>
+        <td>${f.email}</td>
+        <td>${f.mobile}</td>
+        <td>${f.experience || '1 Year'}</td>
+        <td>${statusBadge}</td>
+        <td>
+          ${canEdit ? `
+            ${isPending ? `
+              <button class="btn btn-sm btn-success me-1" onclick="approveFacultyDirect('${f.id}', '${f.email}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
+            ` : ''}
+            <button class="btn btn-sm btn-outline-primary me-1" onclick="editFaculty('${f.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteFaculty('${f.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+          ` : `<span class="text-muted small">View Only</span>`}
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function approveFacultyDirect(id, email) {
+  const res = await fetchAPI("/api/admin/approve-user", {
+    method: "POST",
+    body: JSON.stringify({ id, username: email })
+  });
+  if (res.success) {
+    showToast("Faculty account approved and activated successfully!", "success");
+    loadFacultyData();
+  } else {
+    showToast(res.message || "Approval failed", "danger");
+  }
 }
 
 function filterFacultyTable() {

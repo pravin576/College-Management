@@ -45,7 +45,79 @@ async function loadDashboardData(user) {
     facSection.classList.remove("d-none");
     await loadFacultyMyStudents();
   }
+
+  // Check if Admin viewing Pending User Approvals
+  const adminPendingSection = document.getElementById("adminPendingUsersSection");
+  if (adminPendingSection && (user.role === "Administrator" || user.role === "Admin")) {
+    adminPendingSection.classList.remove("d-none");
+    await loadAdminPendingApprovals();
+  }
 }
+
+async function loadAdminPendingApprovals() {
+  const tbody = document.getElementById("adminPendingUsersTableBody");
+  const badge = document.getElementById("adminPendingCountBadge");
+  if (!tbody) return;
+
+  const res = await fetchAPI("/api/admin/pending-users");
+  if (res.success && res.users && res.users.length > 0) {
+    if (badge) badge.textContent = `${res.users.length} Pending Approval${res.users.length > 1 ? 's' : ''}`;
+    tbody.innerHTML = res.users.map(u => `
+      <tr>
+        <td class="fw-bold">${u.username}</td>
+        <td class="fw-semibold">${u.name}</td>
+        <td><span class="badge ${u.role === 'Faculty' ? 'bg-primary' : u.role === 'HOD' ? 'bg-info text-dark' : u.role === 'Administrator' ? 'bg-dark' : 'bg-secondary'}">${u.role}</span></td>
+        <td><span class="badge bg-light text-dark border">${u.department || 'General'}</span></td>
+        <td>${u.email}</td>
+        <td>${u.mobile || 'N/A'}</td>
+        <td><span class="badge bg-warning text-dark fw-bold">PENDING</span></td>
+        <td>
+          <button class="btn btn-sm btn-success me-1 px-2 fw-semibold" onclick="approveUserDirect(${u.id}, '${u.username}', '${u.name}')" title="Approve & Activate"><i class="bi bi-check-circle me-1"></i> Approve</button>
+          <button class="btn btn-sm btn-outline-danger px-2 fw-semibold" onclick="rejectUserDirect(${u.id}, '${u.username}', '${u.name}')" title="Reject"><i class="bi bi-x-circle me-1"></i> Reject</button>
+        </td>
+      </tr>
+    `).join("");
+  } else {
+    if (badge) badge.textContent = `0 Pending Approvals`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-success py-3"><i class="bi bi-check2-all me-1"></i> No pending authorizations. All user accounts are active!</td></tr>`;
+  }
+}
+
+async function approveUserDirect(id, username, name) {
+  if (!confirm(`Are you sure you want to approve and activate user account '${name || username}'?`)) return;
+  const res = await fetchAPI("/api/admin/approve-user", {
+    method: "POST",
+    body: JSON.stringify({ id, username })
+  });
+  if (res.success) {
+    showToast(res.message || "User account approved successfully!", "success");
+    await loadAdminPendingApprovals();
+    // Also update dashboard stats
+    const statsRes = await fetchAPI("/api/dashboard/stats");
+    if (statsRes.success && statsRes.stats) {
+      const s = statsRes.stats;
+      if (document.getElementById("statStudents")) document.getElementById("statStudents").textContent = s.totalStudents || 0;
+      if (document.getElementById("statFaculty")) document.getElementById("statFaculty").textContent = s.totalFaculty || 0;
+    }
+  } else {
+    showToast(res.message || "Approval failed", "danger");
+  }
+}
+
+async function rejectUserDirect(id, username, name) {
+  if (!confirm(`Are you sure you want to reject user account registration for '${name || username}'?`)) return;
+  const res = await fetchAPI("/api/admin/reject-user", {
+    method: "POST",
+    body: JSON.stringify({ id, username })
+  });
+  if (res.success) {
+    showToast(res.message || "User account rejected.", "warning");
+    await loadAdminPendingApprovals();
+  } else {
+    showToast(res.message || "Rejection failed", "danger");
+  }
+}
+
 
 async function loadFacultyMyStudents() {
   const res = await fetchAPI("/api/students?assigned_only=true");

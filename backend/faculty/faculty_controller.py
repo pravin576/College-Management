@@ -26,11 +26,31 @@ def handle_get_faculty(handler_instance, query_params, body):
         if is_admin(user):
             dept_filter = query_params.get("department", [None])[0]
             if dept_filter and dept_filter != "All":
-                cursor.execute("SELECT * FROM faculty WHERE department = %s ORDER BY name ASC", (dept_filter,))
+                cursor.execute("""
+                    SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
+                           COALESCE(u.status, f.status, 'Pending') AS status
+                    FROM faculty f
+                    LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
+                    WHERE f.department = %s
+                    ORDER BY f.name ASC
+                """, (dept_filter,))
             else:
-                cursor.execute("SELECT * FROM faculty ORDER BY department, name ASC")
+                cursor.execute("""
+                    SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
+                           COALESCE(u.status, f.status, 'Pending') AS status
+                    FROM faculty f
+                    LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
+                    ORDER BY f.department, f.name ASC
+                """)
         else:
-            cursor.execute("SELECT * FROM faculty WHERE department = %s ORDER BY name ASC", (user_dept,))
+            cursor.execute("""
+                SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
+                       COALESCE(u.status, f.status, 'Pending') AS status
+                FROM faculty f
+                LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
+                WHERE f.department = %s
+                ORDER BY f.name ASC
+            """, (user_dept,))
             
         fac = [dict(r) for r in cursor.fetchall()]
         return handler_instance._send_json({"success": True, "faculty": fac})
@@ -77,7 +97,13 @@ def handle_post_faculty(handler_instance, query_params, body):
             )
         )
         cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR (email = %s AND email != '')", (f_id, email))
-        if not cursor.fetchone():
+        existing_user = cursor.fetchone()
+        if existing_user:
+            cursor.execute(
+                "UPDATE users SET name = %s, department = %s, mobile = %s, status = %s WHERE id = %s",
+                (name, dept, mobile if mobile else "9876543210", status_val, existing_user["id"])
+            )
+        else:
             username = body.get("username") or (email.split("@")[0] if email else f"faculty_{f_id.lower()}")
             plain_pass = body.get("password", "faculty123")
             hashed = hash_password(plain_pass)

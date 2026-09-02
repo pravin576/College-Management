@@ -156,6 +156,10 @@ class ERPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_DELETE(self):
         self._safe_handle("DELETE")
 
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
 def main(port=PORT):
     init_db()
     print("==================================================")
@@ -163,9 +167,8 @@ def main(port=PORT):
     print(f"Running at: http://localhost:{port}")
     print(f"Serving frontend from: {FRONTEND_DIR}")
     print("==================================================")
-    socketserver.TCPServer.allow_reuse_address = True
     try:
-        with socketserver.TCPServer(("0.0.0.0", port), ERPRequestHandler) as httpd:
+        with ThreadedHTTPServer(("", port), ERPRequestHandler) as httpd:
             try:
                 httpd.serve_forever()
             except KeyboardInterrupt:
@@ -175,3 +178,4 @@ def main(port=PORT):
 
 if __name__ == "__main__":
     main()
+

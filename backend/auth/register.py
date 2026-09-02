@@ -117,8 +117,8 @@ def handle_register(handler_instance, query_params, body):
 
             cursor.execute(
                 """INSERT INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')""",
-                (student_id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (student_id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
             )
 
         elif role == "Faculty":
@@ -129,7 +129,7 @@ def handle_register(handler_instance, query_params, body):
             cursor.execute(
                 """INSERT INTO faculty (id, name, department, designation, email, mobile, experience, status)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (faculty_id, name, department, designation, email, mobile, experience, "Pending")
+                (faculty_id, name, department, designation, email, mobile, experience, status)
             )
 
         elif role == "HOD":
@@ -138,9 +138,9 @@ def handle_register(handler_instance, query_params, body):
             qualification = body.get("qualification", "Ph.D.").strip()
             experience = body.get("experience", "10 Years").strip()
             cursor.execute(
-                """INSERT INTO hods (department, name, qualification, experience, email, contact, faculty_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                (department, name, qualification, experience, email, mobile, faculty_id)
+                """INSERT INTO hods (department, name, qualification, experience, email, contact, faculty_id, status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (department, name, qualification, experience, email, mobile, faculty_id, status)
             )
             
         cursor.execute(

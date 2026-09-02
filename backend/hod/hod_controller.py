@@ -104,11 +104,28 @@ def handle_get_hods(handler_instance, query_params, body):
         if is_admin(user):
             dept_filter = query_params.get("department", [None])[0]
             if dept_filter and dept_filter != "All":
-                cursor.execute("SELECT * FROM hods WHERE department = %s", (dept_filter,))
+                cursor.execute("""
+                    SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
+                           COALESCE(u.status, h.status, 'Pending') AS status
+                    FROM hods h
+                    LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
+                    WHERE h.department = %s
+                """, (dept_filter,))
             else:
-                cursor.execute("SELECT * FROM hods")
+                cursor.execute("""
+                    SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
+                           COALESCE(u.status, h.status, 'Pending') AS status
+                    FROM hods h
+                    LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
+                """)
         else:
-            cursor.execute("SELECT * FROM hods WHERE department = %s", (user_dept,))
+            cursor.execute("""
+                SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
+                       COALESCE(u.status, h.status, 'Pending') AS status
+                FROM hods h
+                LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
+                WHERE h.department = %s
+            """, (user_dept,))
             
         hods = [dict(r) for r in cursor.fetchall()]
         return handler_instance._send_json({"success": True, "hods": hods})
@@ -137,20 +154,28 @@ def handle_post_hods(handler_instance, query_params, body):
         return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
+    status_val = body.get("status", "Active")
+
     try:
         cursor.execute(
-            """REPLACE INTO hods (department, name, qualification, experience, email, contact, faculty_id)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (dept, name, body.get("qualification", "Ph.D."), body.get("experience", "10 Years"), email, contact, f_id)
+            """REPLACE INTO hods (department, name, qualification, experience, email, contact, faculty_id, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (dept, name, body.get("qualification", "Ph.D."), body.get("experience", "10 Years"), email, contact, f_id, status_val)
         )
-        cursor.execute("SELECT id FROM users WHERE email = %s OR faculty_id = %s", (email, f_id))
-        if not cursor.fetchone():
+        cursor.execute("SELECT id FROM users WHERE email = %s OR faculty_id = %s OR (department = %s AND role = 'HOD')", (email, f_id, dept))
+        existing_user = cursor.fetchone()
+        if existing_user:
+            cursor.execute(
+                "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
+                (name, email, dept, f_id, contact, status_val, existing_user["id"])
+            )
+        else:
             username = body.get("username") or (email.split("@")[0] if email else f"hod_{dept.lower().replace(' ', '_')}")
             plain_pass = body.get("password", "hod123")
             hashed = hash_password(plain_pass)
             cursor.execute(
-                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')",
-                (username, hashed, "HOD", name, email, dept, f_id, contact, time.strftime('%Y-%m-%d %H:%M:%S'))
+                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (username, hashed, "HOD", name, email, dept, f_id, contact, time.strftime('%Y-%m-%d %H:%M:%S'), status_val)
             )
 
         conn.commit()

@@ -412,12 +412,22 @@ def handle_post_approve_user(handler_instance, query_params, body):
         if not target_user:
             return handler_instance._send_json({"success": False, "message": "User not found"}, 404)
             
-        # Update user status to Active
+        # Update user status to Active in users table
         cursor.execute("UPDATE users SET status = 'Active' WHERE id = %s", (target_user["id"],))
         
         # Update status in corresponding role table
-        if target_user["role"] == "Faculty" and target_user.get("faculty_id"):
-            cursor.execute("UPDATE faculty SET status = 'Active' WHERE id = %s", (target_user["faculty_id"],))
+        role = target_user.get("role")
+        fac_id = target_user.get("faculty_id") or ""
+        email = target_user.get("email") or ""
+        dept = target_user.get("department") or ""
+        stu_id = target_user.get("student_id") or ""
+
+        if role == "Faculty":
+            cursor.execute("UPDATE faculty SET status = 'Active' WHERE id = %s OR email = %s", (fac_id, email))
+        elif role == "HOD":
+            cursor.execute("UPDATE hods SET status = 'Active' WHERE faculty_id = %s OR department = %s OR email = %s", (fac_id, dept, email))
+        elif role == "Student":
+            cursor.execute("UPDATE students SET status = 'Active' WHERE id = %s OR email = %s", (stu_id, email))
             
         conn.commit()
         return handler_instance._send_json({
@@ -462,8 +472,18 @@ def handle_post_reject_user(handler_instance, query_params, body):
             
         cursor.execute("UPDATE users SET status = 'Rejected' WHERE id = %s", (target_user["id"],))
         
-        if target_user["role"] == "Faculty" and target_user.get("faculty_id"):
-            cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE id = %s", (target_user["faculty_id"],))
+        role = target_user.get("role")
+        fac_id = target_user.get("faculty_id") or ""
+        email = target_user.get("email") or ""
+        dept = target_user.get("department") or ""
+        stu_id = target_user.get("student_id") or ""
+
+        if role == "Faculty":
+            cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE id = %s OR email = %s", (fac_id, email))
+        elif role == "HOD":
+            cursor.execute("UPDATE hods SET status = 'Rejected' WHERE faculty_id = %s OR department = %s OR email = %s", (fac_id, dept, email))
+        elif role == "Student":
+            cursor.execute("UPDATE students SET status = 'Rejected' WHERE id = %s OR email = %s", (stu_id, email))
             
         conn.commit()
         return handler_instance._send_json({
@@ -530,7 +550,26 @@ def handle_post_user_status(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        target_user = cursor.fetchone()
+        if not target_user:
+            return handler_instance._send_json({"success": False, "message": "User not found"}, 404)
+
         cursor.execute("UPDATE users SET status = %s WHERE id = %s", (new_status, user_id))
+
+        role = target_user.get("role")
+        fac_id = target_user.get("faculty_id") or ""
+        email = target_user.get("email") or ""
+        dept = target_user.get("department") or ""
+        stu_id = target_user.get("student_id") or ""
+
+        if role == "Faculty":
+            cursor.execute("UPDATE faculty SET status = %s WHERE id = %s OR email = %s", (new_status, fac_id, email))
+        elif role == "HOD":
+            cursor.execute("UPDATE hods SET status = %s WHERE faculty_id = %s OR department = %s OR email = %s", (new_status, fac_id, dept, email))
+        elif role == "Student":
+            cursor.execute("UPDATE students SET status = %s WHERE id = %s OR email = %s", (new_status, stu_id, email))
+
         conn.commit()
         return handler_instance._send_json({"success": True, "message": f"User status changed to {new_status}."})
     except Exception as e:
@@ -542,6 +581,7 @@ def handle_post_user_status(handler_instance, query_params, body):
 
 register_route('POST', '/api/admin/users/status', handle_post_user_status)
 register_route('POST', '/api/users/status', handle_post_user_status)
+
 
 # ----------------------------------------------------
 # Destructive Operations & Database Reset (Admin Only)

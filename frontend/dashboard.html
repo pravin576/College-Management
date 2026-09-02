@@ -210,6 +210,37 @@
           </div>
         </div>
 
+        <!-- Admin Pending User Approvals Section -->
+        <div class="card shadow-sm mb-4 d-none" id="adminPendingUsersSection">
+          <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0 fw-bold text-dark">
+              <i class="bi bi-shield-check text-warning me-2"></i> Pending User Authorization Requests
+            </h5>
+            <span class="badge bg-warning text-dark fw-bold px-3 py-2" id="adminPendingCountBadge">0 Pending Approvals</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Role</th>
+                    <th>Department</th>
+                    <th>Email Address</th>
+                    <th>Contact</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminPendingUsersTableBody">
+                  <tr><td colspan="8" class="text-center text-muted py-4">Loading pending authorizations...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <!-- Details Grid -->
         <div class="row g-4">
           <!-- Recent Notices Panel -->

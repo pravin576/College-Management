@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS hods (
     experience VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     contact VARCHAR(50) NOT NULL,
-    faculty_id VARCHAR(50)
+    faculty_id VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'Active'
 );

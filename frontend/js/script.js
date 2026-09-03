@@ -579,47 +579,80 @@ function resetForgotPasswordStep() {
   if (step1) step1.style.display = "block";
   if (step2) step2.style.display = "none";
   if (stepSuccess) stepSuccess.style.display = "none";
+
+  const verInput = document.getElementById("forgotVerInput");
+  const newPass = document.getElementById("forgotNewPassword");
+  const confPass = document.getElementById("forgotConfirmPassword");
+  if (verInput) verInput.value = "";
+  if (newPass) newPass.value = "";
+  if (confPass) confPass.value = "";
 }
 
 async function handleForgotPasswordVerifySubmit(e) {
   e.preventDefault();
   const role = document.getElementById("forgotRole").value;
   const identifier = document.getElementById("forgotIdentifier").value.trim();
+  const submitBtn = e.target.querySelector('button[type="submit"]');
 
   if (!identifier) {
     showToast("Please enter Username, Email, Phone, or ID", "warning");
     return;
   }
 
-  const data = await fetchAPI("/api/forgot-password", {
-    method: "POST",
-    body: JSON.stringify({ action: "verify", role, identifier })
-  });
+  const originalBtnContent = submitBtn ? submitBtn.innerHTML : "";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Searching Account...';
+  }
 
-  if (data.success && data.user) {
-    const user = data.user;
-    const uNameEl = document.getElementById("verifiedUsername");
-    const uRoleEl = document.getElementById("verifiedRole");
-    if (uNameEl) uNameEl.value = user.username;
-    if (uRoleEl) uRoleEl.value = user.role;
-    
-    const nameEl = document.getElementById("verifiedAccountName");
-    const metaEl = document.getElementById("verifiedAccountMeta");
-    const emailEl = document.getElementById("verifiedAccountEmail");
-    const mobileEl = document.getElementById("verifiedAccountMobile");
+  try {
+    const data = await fetchAPI("/api/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ action: "verify", role, identifier })
+    });
 
-    if (nameEl) nameEl.textContent = user.name || user.username;
-    if (metaEl) metaEl.textContent = `Role: ${user.role} ${user.department ? '| Dept: ' + user.department : ''}`;
-    if (emailEl) emailEl.innerHTML = `<i class="bi bi-envelope me-1"></i> Masked Email: <strong>${user.maskedEmail || 'N/A'}</strong>`;
-    if (mobileEl) mobileEl.innerHTML = `<i class="bi bi-phone me-1"></i> Masked Phone: <strong>${user.maskedMobile || 'N/A'}</strong>`;
+    if (data.success && data.user) {
+      const user = data.user;
+      const uNameEl = document.getElementById("verifiedUsername");
+      const uRoleEl = document.getElementById("verifiedRole");
+      if (uNameEl) uNameEl.value = user.username;
+      if (uRoleEl) uRoleEl.value = user.role;
+      
+      const nameEl = document.getElementById("verifiedAccountName");
+      const metaEl = document.getElementById("verifiedAccountMeta");
+      const emailEl = document.getElementById("verifiedAccountEmail");
+      const mobileEl = document.getElementById("verifiedAccountMobile");
 
-    const step1 = document.getElementById("forgotStep1");
-    const step2 = document.getElementById("forgotStep2");
-    if (step1) step1.style.display = "none";
-    if (step2) step2.style.display = "block";
-    showToast("Account found! Please confirm your email/mobile and enter a new password.", "success");
-  } else {
-    showToast(data.message || "Account not found for the selected role and identifier.", "danger");
+      if (nameEl) nameEl.textContent = user.name || user.username;
+      if (metaEl) metaEl.textContent = `Role: ${user.role} ${user.department ? '| Dept: ' + user.department : ''}`;
+      if (emailEl) emailEl.innerHTML = `<i class="bi bi-envelope me-1"></i> Registered Email: <strong>${user.maskedEmail || 'N/A'}</strong>`;
+      if (mobileEl) mobileEl.innerHTML = `<i class="bi bi-phone me-1"></i> Registered Phone: <strong>${user.maskedMobile || 'N/A'}</strong>`;
+
+      const verInput = document.getElementById("forgotVerInput");
+      if (verInput) {
+        verInput.value = "";
+        if (user.role === "Student") {
+          verInput.placeholder = "Enter full email, phone number, or Date of Birth (YYYY-MM-DD)";
+        } else {
+          verInput.placeholder = "Enter full registered email address or mobile number";
+        }
+      }
+
+      const step1 = document.getElementById("forgotStep1");
+      const step2 = document.getElementById("forgotStep2");
+      if (step1) step1.style.display = "none";
+      if (step2) step2.style.display = "block";
+      showToast("Account found! Please verify your identity and set a new password.", "success");
+    } else {
+      showToast(data.message || "Account not found for the selected role and identifier.", "danger");
+    }
+  } catch (err) {
+    showToast("Error connecting to server. Please try again.", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnContent;
+    }
   }
 }
 
@@ -630,9 +663,10 @@ async function handleForgotPasswordResetSubmit(e) {
   const verificationInput = document.getElementById("forgotVerInput").value.trim();
   const newPassword = document.getElementById("forgotNewPassword").value.trim();
   const confirmPassword = document.getElementById("forgotConfirmPassword").value.trim();
+  const submitBtn = e.target.querySelector('button[type="submit"]');
 
   if (!verificationInput) {
-    showToast("Please enter your registered email or mobile number for verification", "warning");
+    showToast("Please enter your registered email, mobile, or DOB for verification", "warning");
     return;
   }
   if (newPassword !== confirmPassword) {
@@ -644,26 +678,42 @@ async function handleForgotPasswordResetSubmit(e) {
     return;
   }
 
-  const data = await fetchAPI("/api/forgot-password", {
-    method: "POST",
-    body: JSON.stringify({
-      action: "reset",
-      username,
-      role,
-      verificationInput,
-      newPassword,
-      confirmPassword
-    })
-  });
+  const originalBtnContent = submitBtn ? submitBtn.innerHTML : "";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Resetting Password...';
+  }
 
-  if (data.success) {
-    const step2 = document.getElementById("forgotStep2");
-    const stepSuccess = document.getElementById("forgotStepSuccess");
-    if (step2) step2.style.display = "none";
-    if (stepSuccess) stepSuccess.style.display = "block";
-    showToast("Password reset successfully! You can now sign in.", "success");
-  } else {
-    showToast(data.message || "Failed to reset password. Please check your verification info.", "danger");
+  try {
+    const data = await fetchAPI("/api/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "reset",
+        username,
+        role,
+        verificationInput,
+        verificationValue: verificationInput,
+        newPassword,
+        confirmPassword
+      })
+    });
+
+    if (data.success) {
+      const step2 = document.getElementById("forgotStep2");
+      const stepSuccess = document.getElementById("forgotStepSuccess");
+      if (step2) step2.style.display = "none";
+      if (stepSuccess) stepSuccess.style.display = "block";
+      showToast("Password reset successfully! You can now sign in.", "success");
+    } else {
+      showToast(data.message || "Failed to reset password. Please check your verification details.", "danger");
+    }
+  } catch (err) {
+    showToast("Network error while resetting password.", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnContent;
+    }
   }
 }
 
@@ -682,6 +732,11 @@ function showLoginTabWithForgotUsername() {
     switchAuthTab("signin");
   }
   resetForgotPasswordStep();
+  const passEl = document.getElementById("loginPassword");
+  if (passEl) {
+    passEl.value = "";
+    passEl.focus();
+  }
 }
 
 async function logoutUser() {

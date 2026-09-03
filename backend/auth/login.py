@@ -31,9 +31,9 @@ def handle_login(handler_instance, query_params, body):
             return handler_instance._send_json({"success": False, "message": "Invalid credentials"}, 401)
             
         # Role validation if specified in the login request (e.g. from role dropdown)
-        if requested_role and requested_role not in ["All", "All Roles"]:
-            req_role_norm = "Administrator" if requested_role.lower() in ["admin", "administrator"] else requested_role.capitalize()
-            user_role_norm = "Administrator" if user["role"].lower() in ["admin", "administrator"] else user["role"].capitalize()
+        if requested_role and requested_role.strip().lower() not in ["all", "all roles"]:
+            req_role_norm = "administrator" if requested_role.strip().lower() in ["admin", "administrator"] else requested_role.strip().lower()
+            user_role_norm = "administrator" if user["role"].strip().lower() in ["admin", "administrator"] else user["role"].strip().lower()
             if req_role_norm != user_role_norm:
                 return handler_instance._send_json({"success": False, "message": f"Selected role '{requested_role}' does not match this user account"}, 401)
 

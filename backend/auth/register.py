@@ -92,10 +92,10 @@ def handle_register(handler_instance, query_params, body):
 
     # Strictly enforce 1 HOD per department across BOTH users and hods tables
     if role == "HOD":
-        cursor.execute("SELECT id, name FROM hods WHERE LOWER(TRIM(department)) = LOWER(TRIM(%s))", (department,))
+        cursor.execute("SELECT id, name FROM hods WHERE LOWER(TRIM(department)) = LOWER(TRIM(%s)) AND status = 'Active'", (department,))
         existing_hod_tbl = cursor.fetchone()
         
-        cursor.execute("SELECT id, name FROM users WHERE role = 'HOD' AND LOWER(TRIM(department)) = LOWER(TRIM(%s))", (department,))
+        cursor.execute("SELECT id, name FROM users WHERE role = 'HOD' AND LOWER(TRIM(department)) = LOWER(TRIM(%s)) AND status = 'Active'", (department,))
         existing_hod_usr = cursor.fetchone()
 
         if existing_hod_tbl or existing_hod_usr:
@@ -103,7 +103,7 @@ def handle_register(handler_instance, query_params, body):
             conn.close()
             return handler_instance._send_json({
                 "success": False, 
-                "message": "This department already has an HOD."
+                "message": f"The '{department}' department already has an active HOD."
             }, 400)
 
     is_dup, dup_msg = check_duplicate(cursor, mobile, email, username, student_id, faculty_id, roll_number, department)
@@ -130,7 +130,8 @@ def handle_register(handler_instance, query_params, body):
 
             cursor.execute(
                 """INSERT INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE name=VALUES(name), email=VALUES(email), mobile=VALUES(mobile), status=VALUES(status)""",
                 (student_id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
             )
 
@@ -141,7 +142,8 @@ def handle_register(handler_instance, query_params, body):
             experience = body.get("experience", "1 Year").strip()
             cursor.execute(
                 """INSERT INTO faculty (id, name, department, designation, email, mobile, experience, status)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE name=VALUES(name), email=VALUES(email), mobile=VALUES(mobile), status=VALUES(status)""",
                 (faculty_id, name, department, designation, email, mobile, experience, status)
             )
 
@@ -150,15 +152,19 @@ def handle_register(handler_instance, query_params, body):
                 faculty_id = f"HOD_{int(time.time() * 1000) % 100000}"
             qualification = body.get("qualification", "Ph.D.").strip()
             experience = body.get("experience", "10 Years").strip()
+            
+            # Cleanly insert or update HOD record
             cursor.execute(
                 """INSERT INTO hods (department, name, qualification, experience, email, contact, faculty_id, status)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE name=VALUES(name), qualification=VALUES(qualification), experience=VALUES(experience), email=VALUES(email), contact=VALUES(contact), faculty_id=VALUES(faculty_id), status=VALUES(status)""",
                 (department, name, qualification, experience, email, mobile, faculty_id, status)
             )
             
         cursor.execute(
             """INSERT INTO users (username, password, role, name, email, department, student_id, faculty_id, mobile, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE password=VALUES(password), role=VALUES(role), name=VALUES(name), department=VALUES(department), status=VALUES(status)""",
             (username, hashed_pass, role, name, email, department, student_id, faculty_id, mobile, status)
         )
         
@@ -168,7 +174,18 @@ def handle_register(handler_instance, query_params, body):
         conn.rollback()
         cursor.close()
         conn.close()
-        return handler_instance._send_json({"success": False, "message": f"Database error: {str(e)}"}, 500)
+        err_str = str(e)
+        if "Duplicate entry" in err_str:
+            if "username" in err_str:
+                msg = f"Username '{username}' is already in use."
+            elif "email" in err_str:
+                msg = f"Email '{email}' is already in use."
+            elif "department" in err_str:
+                msg = f"An HOD record already exists for '{department}'."
+            else:
+                msg = "A record with these details already exists."
+            return handler_instance._send_json({"success": False, "message": msg}, 400)
+        return handler_instance._send_json({"success": False, "message": f"Registration failed: {err_str}"}, 400)
         
     cursor.close()
     conn.close()

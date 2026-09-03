@@ -97,38 +97,30 @@ def handle_get_hods(handler_instance, query_params, body):
 
     conn = get_db_connection()
     if not conn:
-        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+        return handler_instance._send_json({'success': False, 'message': 'Database connection error'}, 500)
+    cursor = conn.cursor(dictionary=True, buffered=True)
 
     try:
+        base_query = """
+            SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
+                   MAX(u.id) AS user_id, MAX(u.username) AS username,
+                   COALESCE(MAX(u.status), h.status, 'Active') AS status
+            FROM hods h
+            LEFT JOIN users u ON (
+                (h.faculty_id IS NOT NULL AND h.faculty_id != '' AND u.faculty_id = h.faculty_id)
+                OR (h.email IS NOT NULL AND h.email != '' AND u.email = h.email AND u.role = 'HOD')
+            )
+        """
+        group_order = " GROUP BY h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id, h.status ORDER BY h.department ASC"
+        
         if is_admin(user):
             dept_filter = query_params.get("department", [None])[0]
             if dept_filter and dept_filter != "All":
-                cursor.execute("""
-                    SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
-                           u.id AS user_id, u.username,
-                           COALESCE(u.status, h.status, 'Pending') AS status
-                    FROM hods h
-                    LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
-                    WHERE h.department = %s
-                """, (dept_filter,))
+                cursor.execute(base_query + " WHERE h.department = %s" + group_order, (dept_filter,))
             else:
-                cursor.execute("""
-                    SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
-                           u.id AS user_id, u.username,
-                           COALESCE(u.status, h.status, 'Pending') AS status
-                    FROM hods h
-                    LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
-                """)
+                cursor.execute(base_query + group_order)
         else:
-            cursor.execute("""
-                SELECT h.id, h.department, h.name, h.qualification, h.experience, h.email, h.contact, h.faculty_id,
-                       u.id AS user_id, u.username,
-                       COALESCE(u.status, h.status, 'Pending') AS status
-                FROM hods h
-                LEFT JOIN users u ON (h.faculty_id = u.faculty_id OR h.department = u.department OR (h.email = u.email AND h.email != ''))
-                WHERE h.department = %s
-            """, (user_dept,))
+            cursor.execute(base_query + " WHERE h.department = %s" + group_order, (user_dept,))
             
         hods = [dict(r) for r in cursor.fetchall()]
         return handler_instance._send_json({"success": True, "hods": hods})
@@ -150,69 +142,105 @@ def handle_post_hods(handler_instance, query_params, body):
     name = body.get("name", "").strip()
     username = (body.get("username") or f_id).strip()
     status_val = body.get("status", "Active")
-    is_edit = body.get("is_edit", False)
+    qual = body.get("qualification", "Ph.D.").strip()
+    exp = body.get("experience", "10 Years").strip()
 
     if not dept or not name:
         return handler_instance._send_json({"success": False, "message": "Department and Name are required!"}, 400)
 
     conn = get_db_connection()
     if not conn:
-        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+        return handler_instance._send_json({'success': False, 'message': 'Database connection error'}, 500)
+    cursor = conn.cursor(dictionary=True, buffered=True)
 
     try:
-        # Check if another HOD already exists for this department when adding new
+        # Check if an HOD record already exists for this department
         cursor.execute("SELECT id, name, faculty_id, email FROM hods WHERE department = %s", (dept,))
         existing_dept_hod = cursor.fetchone()
 
-        if not is_edit and existing_dept_hod and existing_dept_hod.get("faculty_id") != f_id:
+        official_email = email if email else f"hod_{dept[:2].lower()}@college.edu"
+        official_contact = contact if contact else "9876543210"
+
+        is_edit = body.get("is_edit", False)
+        explicit_fid = (body.get("faculty_id") or body.get("facultyId") or "").strip()
+
+        if existing_dept_hod and not is_edit and explicit_fid and explicit_fid != existing_dept_hod.get("faculty_id"):
             return handler_instance._send_json({
-                "success": False, 
-                "message": f"An HOD ({existing_dept_hod['name']}) is already assigned to the {dept} department. Please update or remove the existing HOD first."
+                "success": False,
+                "message": f"An HOD ({existing_dept_hod['name']}) is already assigned to the {dept} department. Please edit or remove the existing HOD first."
             }, 400)
 
-        # Check duplicate username or faculty_id in users if new
-        if not is_edit:
-            cursor.execute("SELECT id FROM users WHERE username = %s OR (faculty_id = %s AND faculty_id != '')", (username, f_id))
-            if cursor.fetchone():
-                return handler_instance._send_json({
-                    "success": False,
-                    "message": f"A user account with Username / ID '{username}' is already registered."
-                }, 400)
-
-        # Atomic HOD insert/update
-        cursor.execute(
-            """REPLACE INTO hods (department, name, qualification, experience, email, contact, faculty_id, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-            (dept, name, body.get("qualification", "Ph.D."), body.get("experience", "10 Years"), email if email else f"hod_{dept[:2].lower()}@college.edu", contact if contact else "9876543210", f_id, status_val)
-        )
-
-        cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR username = %s OR (department = %s AND role = 'HOD') OR (email = %s AND email != '')", (f_id, username, dept, email))
-        existing_user = cursor.fetchone()
-        if existing_user:
+        if existing_dept_hod:
+            f_id = existing_dept_hod.get("faculty_id") or f_id
             cursor.execute(
-                "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
-                (name, email if email else f"hod_{dept[:2].lower()}@college.edu", dept, f_id, contact if contact else "9876543210", status_val, existing_user["id"])
+                """UPDATE hods 
+                   SET name = %s, qualification = %s, experience = %s, email = %s, contact = %s, status = %s
+                   WHERE department = %s""",
+                (name, qual, exp, official_email, official_contact, status_val, dept)
             )
-            success_msg = f"HOD record updated successfully for {dept}!"
-            cred_payload = None
+
+            # Update or create linked user account
+            cursor.execute("SELECT id, username FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR (email = %s AND email != '')", (dept, f_id, official_email))
+            existing_user = cursor.fetchone()
+            if existing_user:
+                cursor.execute(
+                    "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
+                    (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
+                )
+                success_msg = f"HOD leadership updated successfully for {dept}!"
+                cred_payload = None
+            else:
+                plain_pass = body.get("password") or generate_temp_password()
+                hashed = hash_password(plain_pass)
+                cursor.execute(
+                    "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
+                    (username, hashed, "HOD", name, official_email, dept, f_id, official_contact, time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
+                )
+                success_msg = f"HOD assigned successfully for {dept}.\n\nHOD Username: {username}\nTemporary Password: {plain_pass}\n\nThe HOD can now log in directly using these credentials."
+                cred_payload = {
+                    "name": name,
+                    "role": "HOD",
+                    "department": dept,
+                    "username": username,
+                    "facultyId": f_id,
+                    "temporaryPassword": plain_pass,
+                    "loginUrl": "/login.html"
+                }
         else:
-            plain_pass = body.get("password") or generate_temp_password()
-            hashed = hash_password(plain_pass)
+            # Insert new HOD record
             cursor.execute(
-                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
-                (username, hashed, "HOD", name, email if email else f"hod_{dept[:2].lower()}@college.edu", dept, f_id, contact if contact else "9876543210", time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
+                """INSERT INTO hods (department, name, qualification, experience, email, contact, faculty_id, status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (dept, name, qual, exp, official_email, official_contact, f_id, status_val)
             )
-            success_msg = f"HOD created successfully.\n\nHOD Username: {username}\nTemporary Password: {plain_pass}\n\nThe HOD can now login directly using these credentials."
-            cred_payload = {
-                "name": name,
-                "role": "HOD",
-                "department": dept,
-                "username": username,
-                "facultyId": f_id,
-                "temporaryPassword": plain_pass,
-                "loginUrl": "/login.html"
-            }
+
+            # Update or create linked user account
+            cursor.execute("SELECT id, username FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR (email = %s AND email != '')", (dept, f_id, official_email))
+            existing_user = cursor.fetchone()
+            if existing_user:
+                cursor.execute(
+                    "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
+                    (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
+                )
+                success_msg = f"HOD assigned successfully for {dept}!"
+                cred_payload = None
+            else:
+                plain_pass = body.get("password") or generate_temp_password()
+                hashed = hash_password(plain_pass)
+                cursor.execute(
+                    "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
+                    (username, hashed, "HOD", name, official_email, dept, f_id, official_contact, time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
+                )
+                success_msg = f"HOD assigned successfully for {dept}.\n\nHOD Username: {username}\nTemporary Password: {plain_pass}\n\nThe HOD can now log in directly using these credentials."
+                cred_payload = {
+                    "name": name,
+                    "role": "HOD",
+                    "department": dept,
+                    "username": username,
+                    "facultyId": f_id,
+                    "temporaryPassword": plain_pass,
+                    "loginUrl": "/login.html"
+                }
 
         conn.commit()
         return handler_instance._send_json({
@@ -225,6 +253,8 @@ def handle_post_hods(handler_instance, query_params, body):
         })
     except Exception as e:
         conn.rollback()
+        import traceback
+        traceback.print_exc()
         return handler_instance._send_json({"success": False, "message": str(e)}, 500)
     finally:
         cursor.close()

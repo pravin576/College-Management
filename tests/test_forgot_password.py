@@ -59,7 +59,7 @@ def run_tests():
     stu_id = f"STU_FP_{ts}"
     stu_user = f"stu_fp_{ts}"
     stu_email = f"student_{ts}@college.edu"
-    stu_mobile = "9876543210"
+    stu_mobile = f"99{ts:08d}"
     stu_dob = "2004-05-15"
     stu_roll = f"RN_{ts}"
 
@@ -74,7 +74,7 @@ def run_tests():
     fac_id = f"FAC_FP_{ts}"
     fac_user = f"fac_fp_{ts}"
     fac_email = f"faculty_{ts}@college.edu"
-    fac_mobile = "9811223344"
+    fac_mobile = f"98{ts:08d}"
 
     c.execute("""INSERT INTO faculty (id, name, department, designation, email, mobile, status)
                  VALUES (%s, %s, 'Computer Engineering', 'Asst Prof', %s, %s, 'Active')""",
@@ -86,7 +86,7 @@ def run_tests():
     # 3. Setup HOD
     hod_user = f"hod_fp_{ts}"
     hod_email = f"hod_{ts}@college.edu"
-    hod_contact = "9822334455"
+    hod_contact = f"97{ts:08d}"
     hod_fac_id = f"HOD_FP_{ts}"
 
     c.execute("""INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, status)

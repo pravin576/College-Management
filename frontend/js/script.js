@@ -1058,3 +1058,108 @@ async function submitFirstLoginPasswordChange(e) {
     }
   }
 }
+
+// ----------------------------------------------------------------------------
+// FIRST-TIME ADMINISTRATOR SETUP SYSTEM
+// ----------------------------------------------------------------------------
+async function checkAdminSetupStatus() {
+  const bannerEl = document.getElementById("firstTimeSetupBanner");
+  const linkEl = document.getElementById("firstTimeSetupLink");
+  if (!bannerEl && !linkEl) return;
+
+  try {
+    const res = await fetchAPI("/api/setup/status");
+    if (res && res.success && res.setup_required) {
+      if (bannerEl) bannerEl.classList.remove("d-none");
+      if (linkEl) linkEl.classList.remove("d-none");
+    } else {
+      if (bannerEl) bannerEl.classList.add("d-none");
+      if (linkEl) linkEl.classList.add("d-none");
+    }
+  } catch (err) {
+    console.error("Error checking admin setup status:", err);
+  }
+}
+
+async function handleAdminSetupSubmit(e) {
+  e.preventDefault();
+  const submitBtn = e.target.querySelector('button[type="submit"]') || document.querySelector('#adminSetupForm button[type="submit"]');
+  const originalHtml = submitBtn ? submitBtn.innerHTML : "";
+
+  const name = (document.getElementById("setupAdminName")?.value || "").trim();
+  const email = (document.getElementById("setupAdminEmail")?.value || "").trim();
+  const phone = (document.getElementById("setupAdminPhone")?.value || "").trim();
+  const username = (document.getElementById("setupAdminUsername")?.value || "").trim();
+  const password = (document.getElementById("setupAdminPassword")?.value || "").trim();
+  const confirmPassword = (document.getElementById("setupAdminConfirmPassword")?.value || "").trim();
+
+  if (!name || !email || !username || !password) {
+    showToast("Please fill in all required fields.", "danger");
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    showToast("Password and Confirm Password do not match!", "danger");
+    return;
+  }
+
+  if (password.length < 6) {
+    showToast("Password must be at least 6 characters long.", "danger");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Creating Account...';
+  }
+
+  try {
+    const res = await fetchAPI("/api/setup/admin", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        email,
+        phone,
+        username,
+        password,
+        confirmPassword
+      })
+    });
+
+    if (res && res.success) {
+      showToast(res.message || "Administrator account created successfully!", "success");
+      
+      // Update UI status immediately
+      checkAdminSetupStatus();
+
+      // Pre-fill username into Sign In form
+      const loginUsernameEl = document.getElementById("loginUsername");
+      if (loginUsernameEl) loginUsernameEl.value = username;
+      const loginRoleEl = document.getElementById("loginRole");
+      if (loginRoleEl) loginRoleEl.value = "Administrator";
+
+      setTimeout(() => {
+        if (typeof switchAuthTab === "function") {
+          switchAuthTab("signin");
+        }
+      }, 700);
+    } else {
+      showToast(res?.message || "Failed to create Administrator account.", "danger");
+    }
+  } catch (err) {
+    showToast("Network error during Administrator setup. Please try again.", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalHtml;
+    }
+  }
+}
+
+// Auto-check setup status on login page load
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.getElementById("firstTimeSetupBanner") || document.getElementById("adminSetupForm")) {
+    checkAdminSetupStatus();
+  }
+});
+

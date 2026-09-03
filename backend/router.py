@@ -48,6 +48,7 @@ def handle_request(method, handler_instance):
 # Import routes to register them
 import auth.login
 import auth.register
+import auth.setup_controller
 import auth.forgot_password
 import auth.password_controller
 import auth.profile

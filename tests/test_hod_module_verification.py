@@ -47,10 +47,31 @@ def run_tests():
         results[name] = status_str
         print(f" [{status_str}] {name} {('- ' + msg) if msg and not condition else ''}")
 
+    import os, sys
+    backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+    from config.database import get_db_connection
+    from auth.utils import hash_password
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True, buffered=True)
+    cur.execute("SELECT id FROM users WHERE username = 'admin_tester'")
+    if not cur.fetchone():
+        cur.execute(
+            "INSERT INTO users (username, password, role, name, email, department, status) VALUES (%s, %s, %s, %s, %s, %s, 'Active')",
+            ("admin_tester", hash_password("AdminPassword@123"), "Administrator", "Test Administrator", "admin_tester@college.edu", "Administration")
+        )
+    else:
+        cur.execute("UPDATE users SET password = %s, role = 'Administrator', status = 'Active' WHERE username = 'admin_tester'", (hash_password("AdminPassword@123"),))
+    conn.commit()
+    cur.close()
+    conn.close()
+
     admin_client = make_client()
     
-    # 1. Admin Login
-    status, admin_res = req(admin_client, "POST", "/api/login", {"username": "admin", "password": "admin123"})
+    # 1. Admin Login (using setup admin or existing test admin)
+    status, admin_res = req(admin_client, "POST", "/api/login", {"username": "admin_tester", "password": "AdminPassword@123"})
     report("Admin Login", status == 200 and admin_res.get("success"))
 
     rand_id = str(uuid.uuid4())[:5].upper()

@@ -47,6 +47,21 @@
           <div class="tab-content">
             <!-- TAB 1: SIGN IN -->
             <div class="tab-pane active" id="pane-signin">
+              
+              <!-- First-Time Administrator Setup Banner (Shown only when 0 admins exist) -->
+              <div id="firstTimeSetupBanner" class="alert alert-warning border-warning shadow-sm d-none mb-3 p-3 text-start">
+                <div class="d-flex align-items-start gap-2">
+                  <i class="bi bi-shield-exclamation fs-3 text-warning"></i>
+                  <div>
+                    <h6 class="fw-bold mb-1 text-dark">First-Time Setup Required</h6>
+                    <p class="small text-muted mb-2">No master Administrative account exists yet. Create your Administrator account to complete initial setup.</p>
+                    <button type="button" class="btn btn-sm btn-warning fw-bold px-3 shadow-sm" onclick="switchAuthTab('setup')">
+                      <i class="bi bi-shield-plus me-1"></i> Create Administrative Account
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <form id="loginForm" onsubmit="handleLoginSubmit(event)">
                 
                 <div class="mb-3">
@@ -90,6 +105,9 @@
 
                 <!-- Options moved below Sign In button -->
                 <div class="mt-4 pt-3 border-top text-center d-flex flex-column gap-3">
+                  <a href="#" id="firstTimeSetupLink" class="text-decoration-none fw-bold text-warning d-none" onclick="switchAuthTab('setup'); return false;">
+                    <i class="bi bi-shield-plus me-1"></i> First-Time Setup (Create Admin)
+                  </a>
                   <a href="#" class="text-decoration-none fw-bold text-dark" onclick="switchAuthTab('register'); return false;">
                     <i class="bi bi-person-plus-fill text-primary me-1"></i> Register Account
                   </a>
@@ -636,6 +654,99 @@
               </div>
             </div>
 
+            <!-- TAB 4: FIRST-TIME ADMIN SETUP -->
+            <div class="tab-pane" id="pane-setup">
+              <div class="mb-4 text-start">
+                <a href="#" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="switchAuthTab('signin'); return false;">
+                  <i class="bi bi-arrow-left me-1"></i> Back to Sign In
+                </a>
+              </div>
+
+              <div class="text-start mb-3">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="bi bi-shield-lock-fill text-warning fs-3"></i>
+                  <h5 class="fw-bold text-dark mb-0">Create Administrative Account</h5>
+                </div>
+                <p class="text-muted small">Initial Setup: Create the master Administrator account to manage this College ERP system.</p>
+              </div>
+
+              <form id="adminSetupForm" onsubmit="handleAdminSetupSubmit(event)">
+                <div class="mb-3">
+                  <label for="setupAdminName" class="form-label fw-semibold">1. Administrator Full Name *</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                    <input type="text" class="form-control" id="setupAdminName" placeholder="e.g. System Administrator" required>
+                  </div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                  <div class="col-md-6">
+                    <label for="setupAdminEmail" class="form-label fw-semibold">2. Official Email *</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                      <input type="email" class="form-control" id="setupAdminEmail" placeholder="admin@college.edu" required>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="setupAdminPhone" class="form-label fw-semibold">3. Mobile Phone (Optional)</label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                      <input type="text" class="form-control" id="setupAdminPhone" placeholder="e.g. 9876543210">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="setupAdminUsername" class="form-label fw-semibold">4. Administrator Username *</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control" id="setupAdminUsername" placeholder="Choose master username" required>
+                  </div>
+                  <div class="form-text small text-muted">Minimum 3 characters, alphanumeric or underscores.</div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                  <div class="col-md-6">
+                    <label for="setupAdminPassword" class="form-label fw-semibold">5. Password *</label>
+                    <div class="input-group">
+                      <input type="password" class="form-control" id="setupAdminPassword" placeholder="Create secure password" required oninput="checkPasswordStrength(this.value, 'setupPassStrength')">
+                      <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('setupAdminPassword', this)" title="Show/Hide Password">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
+                    <div id="setupPassStrength" class="password-strength-container d-none mt-2 mb-2">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-muted fw-semibold">Strength:</span>
+                        <span class="badge bg-danger strength-badge">Weak</span>
+                      </div>
+                      <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-danger strength-bar" role="progressbar" style="width: 25%;"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label for="setupAdminConfirmPassword" class="form-label fw-semibold">6. Confirm Password *</label>
+                    <div class="input-group">
+                      <input type="password" class="form-control" id="setupAdminConfirmPassword" placeholder="Re-enter password" required>
+                      <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('setupAdminConfirmPassword', this)" title="Show/Hide Password">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="password-tips p-3 rounded bg-light border mb-4 small text-muted">
+                  <div class="fw-bold text-dark mb-1"><i class="bi bi-shield-check me-1 text-primary"></i> Security Note:</div>
+                  <p class="mb-0 small">This will become the primary Administrator account. Make sure to remember these credentials.</p>
+                </div>
+
+                <button type="submit" class="btn btn-warning w-100 py-2.5 fw-bold fs-6 shadow-sm">
+                  <i class="bi bi-shield-fill-check me-2"></i>Complete First-Time Setup
+                </button>
+              </form>
+            </div>
+
           </div>
 
           <div class="border-top mt-4 pt-3 text-center">
@@ -654,14 +765,16 @@
       document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
 
       if (tabName === 'signin') {
-        document.getElementById('tab-signin').classList.add('active');
-        document.getElementById('pane-signin').classList.add('active');
+        document.getElementById('tab-signin')?.classList.add('active');
+        document.getElementById('pane-signin')?.classList.add('active');
       } else if (tabName === 'register') {
-        document.getElementById('tab-register').classList.add('active');
-        document.getElementById('pane-register').classList.add('active');
+        document.getElementById('tab-register')?.classList.add('active');
+        document.getElementById('pane-register')?.classList.add('active');
       } else if (tabName === 'forgot') {
-        document.getElementById('tab-forgot').classList.add('active');
-        document.getElementById('pane-forgot').classList.add('active');
+        document.getElementById('tab-forgot')?.classList.add('active');
+        document.getElementById('pane-forgot')?.classList.add('active');
+      } else if (tabName === 'setup') {
+        document.getElementById('pane-setup')?.classList.add('active');
       }
     }
 

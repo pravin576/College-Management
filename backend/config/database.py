@@ -49,7 +49,8 @@ def get_db_connection():
             user=cfg["user"],
             password=cfg["password"],
             database=cfg["database"],
-            auth_plugin='mysql_native_password'
+            auth_plugin='mysql_native_password',
+            buffered=True
         )
         if conn.is_connected():
             return conn
@@ -220,18 +221,6 @@ def init_db():
                     cursor.execute("INSERT INTO departments (code, name, description) VALUES (%s, %s, %s)", (d_code, d_name, d_desc))
         except Exception as e:
             print(f"[DATABASE NOTICE] Notice seeding default departments: {e}")
-
-        # Step 5: Seed default admin user if not exists
-        try:
-            cursor.execute("SELECT id FROM users WHERE username = 'admin'")
-            if not cursor.fetchone():
-                from auth.utils import hash_password
-                cursor.execute(
-                    "INSERT INTO users (username, password, role, name, email, department, status) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    ("admin", hash_password("admin123"), "Administrator", "System Administrator", "admin@college.edu", "Administration", "Active")
-                )
-        except Exception as e:
-            print(f"[DATABASE NOTICE] Notice seeding admin user: {e}")
 
         conn.commit()
         cursor.close()

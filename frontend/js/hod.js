@@ -346,6 +346,9 @@ async function approveHodDirect(userId, email, department) {
 
 async function saveHodForm(e) {
   e.preventDefault();
+  const submitBtn = e.target.querySelector('button[type="submit"]') || document.querySelector('#addHodModal button[type="submit"]');
+  const originalHtml = submitBtn ? submitBtn.innerHTML : "";
+
   const payload = {
     department: document.getElementById("modalHodDepartment").value,
     name: document.getElementById("modalHodName").value.trim(),
@@ -355,21 +358,35 @@ async function saveHodForm(e) {
     contact: document.getElementById("modalHodContact").value.trim()
   };
 
-  const res = await fetchAPI("/api/hods", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving HOD Record...';
+  }
 
-  if (res.success) {
-    closeModal("addHodModal");
-    loadHodData();
-    if (res.credentials) {
-      showCredentialModal(res.credentials);
+  try {
+    const res = await fetchAPI("/api/hods", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (res.success) {
+      closeModal("addHodModal");
+      loadHodData();
+      if (res.credentials) {
+        showCredentialModal(res.credentials);
+      } else {
+        showToast(res.message || "HOD assigned successfully!", "success");
+      }
     } else {
-      showToast(res.message || "HOD assigned successfully!", "success");
+      showToast(res.message || "Failed to save HOD record", "danger");
     }
-  } else {
-    showToast(res.message || "Failed to save HOD record", "danger");
+  } catch (err) {
+    showToast("Network error while saving HOD record", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalHtml;
+    }
   }
 }
 

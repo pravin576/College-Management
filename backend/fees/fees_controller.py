@@ -150,12 +150,16 @@ def handle_post_fees(handler_instance, query_params, body):
         pay_status = "Paid" if pending_fees <= 0 else ("Partial" if paid_fees > 0 else "Pending")
         p_date = body.get("paymentDate", time.strftime('%Y-%m-%d'))
 
-        if not s_id:
-            return handler_instance._send_json({"success": False, "message": "Student ID is required"}, 400)
+        cursor.execute("SELECT id, name, department FROM students WHERE id = %s OR roll_number = %s LIMIT 1", (s_id, s_id))
+        stu_row = cursor.fetchone()
+        if stu_row:
+            s_id = stu_row["id"]
+            if not s_name or s_name == "Student":
+                s_name = stu_row.get("name", "Student")
+            if not is_hod(user) and not body.get("department"):
+                dept = stu_row.get("department", dept)
 
         if is_hod(user):
-            cursor.execute("SELECT department FROM students WHERE id = %s", (s_id,))
-            stu_row = cursor.fetchone()
             if not stu_row or stu_row["department"] != user_dept:
                 return handler_instance._send_json({"success": False, "message": "Cannot manage fees for students outside your department"}, 403)
 

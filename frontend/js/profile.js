@@ -34,12 +34,14 @@ async function saveProfileForm(e) {
     body: JSON.stringify(payload)
   });
 
-  if (res.success && res.user) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(res.user));
+  if (res.success) {
+    const updatedUser = res.user || { ...(getSession() || {}), name, email };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
     showToast(res.message || "Profile updated successfully!", "success");
-    populateProfileData(res.user);
-    updateSidebarUserUI(res.user);
-    document.getElementById("profPassword").value = "";
+    populateProfileData(updatedUser);
+    updateSidebarUserUI(updatedUser);
+    const pwdInput = document.getElementById("profPassword");
+    if (pwdInput) pwdInput.value = "";
   } else {
     showToast(res.message || "Failed to update profile", "danger");
   }

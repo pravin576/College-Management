@@ -415,13 +415,14 @@ def handle_post_results(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT id, name, department FROM students WHERE id = %s", (s_id,))
+        cursor.execute("SELECT id, name, department FROM students WHERE id = %s OR roll_number = %s LIMIT 1", (s_id, s_id))
         stu_row = cursor.fetchone()
         if not stu_row:
-            return handler_instance._send_json({"success": False, "message": "Student record not found"}, 404)
+            return handler_instance._send_json({"success": False, "message": f"Student '{s_id}' not found. Please enter a valid Student ID or Roll Number."}, 404)
 
-        if s_name == "Student" and stu_row.get("name"):
-            s_name = stu_row["name"]
+        s_id = stu_row["id"]
+        if s_name == "Student" or not s_name:
+            s_name = stu_row.get("name", "Student")
 
         if res_id:
             cursor.execute("SELECT r.*, s.department FROM results r LEFT JOIN students s ON r.student_id = s.id WHERE r.id = %s", (res_id,))

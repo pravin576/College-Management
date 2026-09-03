@@ -336,13 +336,14 @@ def handle_post_attendance(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT id, name, department, year, semester, division FROM students WHERE id = %s", (s_id,))
+        cursor.execute("SELECT id, name, department, year, semester, division FROM students WHERE id = %s OR roll_number = %s LIMIT 1", (s_id, s_id))
         stu_row = cursor.fetchone()
         if not stu_row:
-            return handler_instance._send_json({"success": False, "message": "Student record not found"}, 404)
+            return handler_instance._send_json({"success": False, "message": f"Student '{s_id}' not found in database"}, 404)
 
-        if s_name == "Student" and stu_row.get("name"):
-            s_name = stu_row["name"]
+        s_id = stu_row["id"]
+        if s_name == "Student" or not s_name:
+            s_name = stu_row.get("name", "Student")
 
         dept = stu_row.get("department") or user_dept
         year = stu_row.get("year", "First Year")

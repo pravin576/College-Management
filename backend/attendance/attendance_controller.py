@@ -362,6 +362,10 @@ def handle_post_attendance(handler_instance, query_params, body):
                 if existing_att.get("department") != user_dept or stu_row.get("department") != user_dept:
                     return handler_instance._send_json({"success": False, "message": "Permission denied: You can only modify attendance in your department"}, 403)
 
+            cursor.execute("SELECT id FROM attendance WHERE student_id = %s AND subject = %s AND date = %s AND id != %s", (s_id, subject, att_date, att_id))
+            if cursor.fetchone():
+                return handler_instance._send_json({"success": False, "message": "Attendance already exists for this student, subject and date."}, 400)
+
             cursor.execute(
                 "UPDATE attendance SET student_id=%s, student_name=%s, subject=%s, date=%s, status=%s, department=%s, year=%s, semester=%s, division=%s WHERE id=%s",
                 (s_id, s_name, subject, att_date, status, dept, year, sem, div, att_id)
@@ -373,6 +377,10 @@ def handle_post_attendance(handler_instance, query_params, body):
             elif role == "HOD":
                 if stu_row.get("department") != user_dept:
                     return handler_instance._send_json({"success": False, "message": "Permission denied: You can only mark attendance for students in your department"}, 403)
+
+            cursor.execute("SELECT id FROM attendance WHERE student_id = %s AND subject = %s AND date = %s", (s_id, subject, att_date))
+            if cursor.fetchone():
+                return handler_instance._send_json({"success": False, "message": "Attendance already exists for this student, subject and date."}, 400)
 
             cursor.execute(
                 "INSERT INTO attendance (student_id, student_name, subject, date, status, faculty_id, department, year, semester, division) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",

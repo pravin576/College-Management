@@ -62,6 +62,13 @@ def handle_post_subjects(handler_instance, query_params, body):
 
     try:
         if sub_id:
+            cursor.execute("SELECT id FROM subjects WHERE code = %s AND id != %s", (code, sub_id))
+        else:
+            cursor.execute("SELECT id FROM subjects WHERE code = %s", (code,))
+        if cursor.fetchone():
+            return handler_instance._send_json({"success": False, "message": f"Subject with code '{code}' already exists. Please use a unique subject code."}, 400)
+
+        if sub_id:
             cursor.execute(
                 "UPDATE subjects SET code=%s, name=%s, department=%s, semester=%s, credits=%s, faculty_id=%s WHERE id=%s",
                 (code, name, dept, semester, credits_val, faculty_id, sub_id)

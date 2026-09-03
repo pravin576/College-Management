@@ -224,6 +224,77 @@ def handle_get_reports_export(handler_instance, query_params, body):
             for r in rows:
                 lines.append(f'"{r["id"]}","{r["roll_number"]}","{r["name"]}","{r["department"]}","{r.get("year","")}","{r["semester"]}","{r["division"]}","{r["email"]}","{r["mobile"]}","{r.get("status","")}"\n')
 
+        elif report_type == "faculty":
+            if role == "Student":
+                sql = "SELECT id, name, department, designation, email, mobile, experience FROM faculty WHERE department = %s ORDER BY name ASC"
+                cursor.execute(sql, (user_dept,))
+            else:
+                sql = "SELECT id, name, department, designation, email, mobile, experience FROM faculty WHERE 1=1"
+                p = []
+                if role in ["HOD", "Faculty"]:
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                sql += " ORDER BY department, name ASC"
+                cursor.execute(sql, tuple(p))
+            rows = [dict(r) for r in cursor.fetchall()]
+            lines.append("Faculty ID,Name,Department,Designation,Email,Mobile,Experience\n")
+            for r in rows:
+                lines.append(f'"{r["id"]}","{r["name"]}","{r["department"]}","{r["designation"]}","{r["email"]}","{r["mobile"]}","{r.get("experience","")}"\n')
+
+        elif report_type == "attendance":
+            if role == "Student":
+                sql = "SELECT * FROM attendance WHERE student_id = %s ORDER BY date DESC"
+                cursor.execute(sql, (student_id,))
+            elif role == "Faculty":
+                sql = """SELECT DISTINCT a.* FROM attendance a
+                         JOIN faculty_students fs ON a.student_id = fs.student_id
+                         WHERE fs.faculty_id = %s ORDER BY a.date DESC"""
+                cursor.execute(sql, (faculty_id or "",))
+            else:
+                sql = "SELECT * FROM attendance WHERE 1=1"
+                p = []
+                if role == "HOD":
+                    sql += " AND department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND department = %s"
+                    p.append(dept_f)
+                sql += " ORDER BY date DESC"
+                cursor.execute(sql, tuple(p))
+            rows = [dict(r) for r in cursor.fetchall()]
+            lines.append("ID,Student ID,Student Name,Department,Subject,Date,Status\n")
+            for r in rows:
+                lines.append(f'"{r["id"]}","{r["student_id"]}","{r["student_name"]}","{r.get("department","")}","{r["subject"]}","{r["date"]}","{r["status"]}"\n')
+
+        elif report_type == "results":
+            if role == "Student":
+                sql = "SELECT * FROM results WHERE student_id = %s"
+                cursor.execute(sql, (student_id,))
+            elif role == "Faculty":
+                sql = """SELECT r.*, s.department, s.year FROM results r
+                         JOIN students s ON r.student_id = s.id
+                         JOIN faculty_students fs ON s.id = fs.student_id
+                         WHERE fs.faculty_id = %s ORDER BY r.student_id ASC"""
+                cursor.execute(sql, (faculty_id or "",))
+            else:
+                sql = "SELECT r.*, s.department, s.year FROM results r JOIN students s ON r.student_id = s.id WHERE 1=1"
+                p = []
+                if role == "HOD":
+                    sql += " AND s.department = %s"
+                    p.append(user_dept)
+                elif dept_f and dept_f != "All":
+                    sql += " AND s.department = %s"
+                    p.append(dept_f)
+                sql += " ORDER BY s.department, r.student_id ASC"
+                cursor.execute(sql, tuple(p))
+            rows = [dict(r) for r in cursor.fetchall()]
+            lines.append("Student ID,Student Name,Department,Subject,Semester,Internal Marks,End Sem Marks,Total Marks,Percentage,Grade,Status\n")
+            for r in rows:
+                lines.append(f'"{r["student_id"]}","{r["student_name"]}","{r.get("department","")}","{r["subject"]}","{r["semester"]}","{r["internal_marks"]}","{r["end_sem_marks"]}","{r["total_marks"]}","{r["percentage"]}","{r["grade"]}","{r["status"]}"\n')
+
         elif report_type == "fees":
             if role == "Student":
                 sql = "SELECT * FROM fees WHERE student_id = %s"
@@ -485,11 +556,22 @@ def handle_post_approve_user(handler_instance, query_params, body):
         stu_id = target_user.get("student_id") or ""
 
         if role == "Faculty":
-            cursor.execute("UPDATE faculty SET status = 'Active' WHERE id = %s OR (email = %s AND email != '')", (fac_id, u_email))
+            if fac_id:
+                cursor.execute("UPDATE faculty SET status = 'Active' WHERE id = %s", (fac_id,))
+            elif u_email:
+                cursor.execute("UPDATE faculty SET status = 'Active' WHERE email = %s", (u_email,))
         elif role == "HOD":
-            cursor.execute("UPDATE hods SET status = 'Active' WHERE faculty_id = %s OR (department = %s AND department != '') OR (email = %s AND email != '')", (fac_id, u_dept, u_email))
+            if fac_id:
+                cursor.execute("UPDATE hods SET status = 'Active' WHERE faculty_id = %s", (fac_id,))
+            elif u_email:
+                cursor.execute("UPDATE hods SET status = 'Active' WHERE email = %s", (u_email,))
+            elif u_dept:
+                cursor.execute("UPDATE hods SET status = 'Active' WHERE department = %s", (u_dept,))
         elif role == "Student":
-            cursor.execute("UPDATE students SET status = 'Active' WHERE id = %s OR (email = %s AND email != '')", (stu_id, u_email))
+            if stu_id:
+                cursor.execute("UPDATE students SET status = 'Active' WHERE id = %s", (stu_id,))
+            elif u_email:
+                cursor.execute("UPDATE students SET status = 'Active' WHERE email = %s", (u_email,))
             
         conn.commit()
         return handler_instance._send_json({
@@ -569,11 +651,22 @@ def handle_post_reject_user(handler_instance, query_params, body):
         stu_id = target_user.get("student_id") or ""
 
         if role == "Faculty":
-            cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE id = %s OR (email = %s AND email != '')", (fac_id, u_email))
+            if fac_id:
+                cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE id = %s", (fac_id,))
+            elif u_email:
+                cursor.execute("UPDATE faculty SET status = 'Rejected' WHERE email = %s", (u_email,))
         elif role == "HOD":
-            cursor.execute("UPDATE hods SET status = 'Rejected' WHERE faculty_id = %s OR (department = %s AND department != '') OR (email = %s AND email != '')", (fac_id, u_dept, u_email))
+            if fac_id:
+                cursor.execute("UPDATE hods SET status = 'Rejected' WHERE faculty_id = %s", (fac_id,))
+            elif u_email:
+                cursor.execute("UPDATE hods SET status = 'Rejected' WHERE email = %s", (u_email,))
+            elif u_dept:
+                cursor.execute("UPDATE hods SET status = 'Rejected' WHERE department = %s", (u_dept,))
         elif role == "Student":
-            cursor.execute("UPDATE students SET status = 'Rejected' WHERE id = %s OR (email = %s AND email != '')", (stu_id, u_email))
+            if stu_id:
+                cursor.execute("UPDATE students SET status = 'Rejected' WHERE id = %s", (stu_id,))
+            elif u_email:
+                cursor.execute("UPDATE students SET status = 'Rejected' WHERE email = %s", (u_email,))
             
         conn.commit()
         return handler_instance._send_json({
@@ -660,11 +753,22 @@ def handle_post_user_status(handler_instance, query_params, body):
         stu_id = target_user.get("student_id") or ""
 
         if role == "Faculty":
-            cursor.execute("UPDATE faculty SET status = %s WHERE id = %s OR (email = %s AND email != '')", (new_status, fac_id, u_email))
+            if fac_id:
+                cursor.execute("UPDATE faculty SET status = %s WHERE id = %s", (new_status, fac_id))
+            elif u_email:
+                cursor.execute("UPDATE faculty SET status = %s WHERE email = %s", (new_status, u_email))
         elif role == "HOD":
-            cursor.execute("UPDATE hods SET status = %s WHERE faculty_id = %s OR (department = %s AND department != '') OR (email = %s AND email != '')", (new_status, fac_id, u_dept, u_email))
+            if fac_id:
+                cursor.execute("UPDATE hods SET status = %s WHERE faculty_id = %s", (new_status, fac_id))
+            elif u_email:
+                cursor.execute("UPDATE hods SET status = %s WHERE email = %s", (new_status, u_email))
+            elif u_dept:
+                cursor.execute("UPDATE hods SET status = %s WHERE department = %s", (new_status, u_dept))
         elif role == "Student":
-            cursor.execute("UPDATE students SET status = %s WHERE id = %s OR (email = %s AND email != '')", (new_status, stu_id, u_email))
+            if stu_id:
+                cursor.execute("UPDATE students SET status = %s WHERE id = %s", (new_status, stu_id))
+            elif u_email:
+                cursor.execute("UPDATE students SET status = %s WHERE email = %s", (new_status, u_email))
 
         conn.commit()
         return handler_instance._send_json({"success": True, "message": f"User status changed to {new_status}."})

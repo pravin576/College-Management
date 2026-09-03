@@ -319,15 +319,40 @@ function renderHodTable(hods) {
         <td>${statusBadge}</td>
         <td>
           ${isAdmin ? `
+            <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="editHod('${h.department}')" title="Edit HOD"><i class="bi bi-pencil"></i> Edit</button>
             ${isPending ? `
               <button class="btn btn-sm btn-success me-1" onclick="approveHodDirect('${h.user_id || h.id || ''}', '${h.email}', '${h.department}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
             ` : ''}
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteHod('${h.id || h.department}')" title="Delete"><i class="bi bi-trash"></i> Delete</button>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteHod('${h.id || h.department}')" title="Delete"><i class="bi bi-trash"></i> Delete</button>
           ` : `<span class="text-muted small">Assigned HOD</span>`}
         </td>
       </tr>
     `;
   }).join("");
+}
+
+let isEditingHod = false;
+
+function editHod(department) {
+  const h = allHods.find(x => x.department === department);
+  if (!h) return;
+  isEditingHod = true;
+
+  const deptEl = document.getElementById("modalHodDepartment");
+  const nameEl = document.getElementById("modalHodName");
+  const qualEl = document.getElementById("modalHodQualification");
+  const expEl = document.getElementById("modalHodExperience");
+  const emailEl = document.getElementById("modalHodEmail");
+  const contactEl = document.getElementById("modalHodContact");
+
+  if (deptEl) deptEl.value = h.department;
+  if (nameEl) nameEl.value = h.name || "";
+  if (qualEl) qualEl.value = h.qualification || "Ph.D.";
+  if (expEl) expEl.value = h.experience || "10 Years";
+  if (emailEl) emailEl.value = h.email || "";
+  if (contactEl) contactEl.value = h.contact || "";
+
+  openModal("addHodModal");
 }
 
 async function approveHodDirect(userId, email, department) {
@@ -343,13 +368,13 @@ async function approveHodDirect(userId, email, department) {
   }
 }
 
-
 async function saveHodForm(e) {
   e.preventDefault();
   const submitBtn = e.target.querySelector('button[type="submit"]') || document.querySelector('#addHodModal button[type="submit"]');
   const originalHtml = submitBtn ? submitBtn.innerHTML : "";
 
   const payload = {
+    is_edit: isEditingHod,
     department: document.getElementById("modalHodDepartment").value,
     name: document.getElementById("modalHodName").value.trim(),
     qualification: document.getElementById("modalHodQualification").value.trim(),
@@ -370,12 +395,13 @@ async function saveHodForm(e) {
     });
 
     if (res.success) {
+      isEditingHod = false;
       closeModal("addHodModal");
       loadHodData();
       if (res.credentials) {
         showCredentialModal(res.credentials);
       } else {
-        showToast(res.message || "HOD assigned successfully!", "success");
+        showToast(res.message || "HOD record saved successfully!", "success");
       }
     } else {
       showToast(res.message || "Failed to save HOD record", "danger");

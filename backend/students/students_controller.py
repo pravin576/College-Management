@@ -309,27 +309,55 @@ def handle_post_students(handler_instance, query_params, body):
             if cursor.fetchone():
                 return handler_instance._send_json({"success": False, "message": f"Duplicate Error: Roll Number '{roll_number}' already exists in department '{dept}'!"}, 400)
 
-        cursor.execute(
-            """REPLACE INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status, photo)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-            (
-                s_id,
-                roll_number,
-                name,
-                email if email else f"{s_id.lower()}@college.edu",
-                mobile if mobile else "9876543210",
-                body.get("gender", "Male"),
-                body.get("dob", "2005-01-01"),
-                dept,
-                body.get("year", "First Year"),
-                body.get("semester", "Semester 1"),
-                body.get("division", "A"),
-                body.get("admissionYear", "2026"),
-                body.get("address", "College Campus"),
-                body.get("status", "Active"),
-                body.get("photo", "")
+        cursor.execute("SELECT id FROM students WHERE id = %s", (s_id,))
+        existing_stu = cursor.fetchone()
+
+        if existing_stu or is_edit:
+            cursor.execute(
+                """UPDATE students 
+                   SET roll_number = %s, name = %s, email = %s, mobile = %s, gender = %s, dob = %s, department = %s,
+                       year = %s, semester = %s, division = %s, admission_year = %s, address = %s, status = %s, photo = %s
+                   WHERE id = %s""",
+                (
+                    roll_number,
+                    name,
+                    email if email else f"{s_id.lower()}@college.edu",
+                    mobile if mobile else "9876543210",
+                    body.get("gender", "Male"),
+                    body.get("dob", "2005-01-01"),
+                    dept,
+                    body.get("year", "First Year"),
+                    body.get("semester", "Semester 1"),
+                    body.get("division", "A"),
+                    body.get("admissionYear", "2026"),
+                    body.get("address", "College Campus"),
+                    body.get("status", "Active"),
+                    body.get("photo", ""),
+                    s_id
+                )
             )
-        )
+        else:
+            cursor.execute(
+                """INSERT INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status, photo)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    s_id,
+                    roll_number,
+                    name,
+                    email if email else f"{s_id.lower()}@college.edu",
+                    mobile if mobile else "9876543210",
+                    body.get("gender", "Male"),
+                    body.get("dob", "2005-01-01"),
+                    dept,
+                    body.get("year", "First Year"),
+                    body.get("semester", "Semester 1"),
+                    body.get("division", "A"),
+                    body.get("admissionYear", "2026"),
+                    body.get("address", "College Campus"),
+                    body.get("status", "Active"),
+                    body.get("photo", "")
+                )
+            )
 
         cursor.execute("SELECT id FROM users WHERE student_id = %s OR username = %s", (s_id, s_id))
         existing_user = cursor.fetchone()

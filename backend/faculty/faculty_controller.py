@@ -19,41 +19,30 @@ def handle_get_faculty(handler_instance, query_params, body):
 
     conn = get_db_connection()
     if not conn:
-        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+        return handler_instance._send_json({'success': False, 'message': 'Database connection error'}, 500)
+    cursor = conn.cursor(dictionary=True, buffered=True)
 
     try:
+        base_query = """
+            SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
+                   MAX(u.id) AS user_id, MAX(u.username) AS username,
+                   COALESCE(MAX(u.status), f.status, 'Active') AS status
+            FROM faculty f
+            LEFT JOIN users u ON (
+                (f.id IS NOT NULL AND f.id != '' AND u.faculty_id = f.id)
+                OR (f.email IS NOT NULL AND f.email != '' AND u.email = f.email AND u.role = 'Faculty')
+            )
+        """
+        group_order = " GROUP BY f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience, f.status ORDER BY f.department, f.name ASC"
+        
         if is_admin(user):
             dept_filter = query_params.get("department", [None])[0]
             if dept_filter and dept_filter != "All":
-                cursor.execute("""
-                    SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
-                           u.id AS user_id, u.username,
-                           COALESCE(u.status, f.status, 'Pending') AS status
-                    FROM faculty f
-                    LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
-                    WHERE f.department = %s
-                    ORDER BY f.name ASC
-                """, (dept_filter,))
+                cursor.execute(base_query + " WHERE f.department = %s" + group_order, (dept_filter,))
             else:
-                cursor.execute("""
-                    SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
-                           u.id AS user_id, u.username,
-                           COALESCE(u.status, f.status, 'Pending') AS status
-                    FROM faculty f
-                    LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
-                    ORDER BY f.department, f.name ASC
-                """)
+                cursor.execute(base_query + group_order)
         else:
-            cursor.execute("""
-                SELECT f.id, f.name, f.department, f.designation, f.email, f.mobile, f.experience,
-                       u.id AS user_id, u.username,
-                       COALESCE(u.status, f.status, 'Pending') AS status
-                FROM faculty f
-                LEFT JOIN users u ON (f.id = u.faculty_id OR (f.email = u.email AND f.email != ''))
-                WHERE f.department = %s
-                ORDER BY f.name ASC
-            """, (user_dept,))
+            cursor.execute(base_query + " WHERE f.department = %s" + group_order, (user_dept,))
             
         fac = [dict(r) for r in cursor.fetchall()]
         return handler_instance._send_json({"success": True, "faculty": fac})
@@ -75,30 +64,51 @@ def handle_post_faculty(handler_instance, query_params, body):
     email = body.get("email", "").strip()
     name = body.get("name", "").strip()
     status_val = body.get("status", "Active")
+    is_edit = body.get("is_edit", False)
 
     if not f_id or not name:
         return handler_instance._send_json({"success": False, "message": "Faculty ID and Name are required!"}, 400)
 
     conn = get_db_connection()
     if not conn:
-        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
-    cursor = conn.cursor(dictionary=True)
+        return handler_instance._send_json({'success': False, 'message': 'Database connection error'}, 500)
+    cursor = conn.cursor(dictionary=True, buffered=True)
 
     try:
-        cursor.execute(
-            """REPLACE INTO faculty (id, name, department, designation, email, mobile, experience, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-            (
-                f_id,
-                name,
-                dept,
-                body.get("designation", "Assistant Professor"),
-                email if email else f"{f_id.lower()}@college.edu",
-                mobile if mobile else "9876543210",
-                body.get("experience", "1 Year"),
-                status_val
+        cursor.execute("SELECT id FROM faculty WHERE id = %s", (f_id,))
+        existing_fac = cursor.fetchone()
+
+        if existing_fac or is_edit:
+            cursor.execute(
+                """UPDATE faculty 
+                   SET name = %s, department = %s, designation = %s, email = %s, mobile = %s, experience = %s, status = %s
+                   WHERE id = %s""",
+                (
+                    name,
+                    dept,
+                    body.get("designation", "Assistant Professor"),
+                    email if email else f"{f_id.lower()}@college.edu",
+                    mobile if mobile else "9876543210",
+                    body.get("experience", "1 Year"),
+                    status_val,
+                    f_id
+                )
             )
-        )
+        else:
+            cursor.execute(
+                """INSERT INTO faculty (id, name, department, designation, email, mobile, experience, status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    f_id,
+                    name,
+                    dept,
+                    body.get("designation", "Assistant Professor"),
+                    email if email else f"{f_id.lower()}@college.edu",
+                    mobile if mobile else "9876543210",
+                    body.get("experience", "1 Year"),
+                    status_val
+                )
+            )
         cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR username = %s OR (email = %s AND email != '')", (f_id, f_id, email))
         existing_user = cursor.fetchone()
         if existing_user:

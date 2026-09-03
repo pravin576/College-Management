@@ -64,6 +64,35 @@ def handle_post_timetable(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
+        # 1. Division slot conflict
+        if tt_id:
+            cursor.execute("SELECT id, subject FROM timetable WHERE department=%s AND semester=%s AND division=%s AND day=%s AND time=%s AND id!=%s", (dept, sem, div, day, tt_time, tt_id))
+        else:
+            cursor.execute("SELECT id, subject FROM timetable WHERE department=%s AND semester=%s AND division=%s AND day=%s AND time=%s", (dept, sem, div, day, tt_time))
+        conflict = cursor.fetchone()
+        if conflict:
+            return handler_instance._send_json({"success": False, "message": f"Timetable conflict: Slot '{tt_time}' on {day} is already scheduled for '{conflict['subject']}' in {dept} ({sem} - Div {div})."}, 400)
+
+        # 2. Room conflict
+        if room and room.lower() not in ["", "online", "tba"]:
+            if tt_id:
+                cursor.execute("SELECT id, department, subject FROM timetable WHERE room=%s AND day=%s AND time=%s AND id!=%s", (room, day, tt_time, tt_id))
+            else:
+                cursor.execute("SELECT id, department, subject FROM timetable WHERE room=%s AND day=%s AND time=%s", (room, day, tt_time))
+            room_conflict = cursor.fetchone()
+            if room_conflict:
+                return handler_instance._send_json({"success": False, "message": f"Room conflict: Room '{room}' is already occupied by {room_conflict['department']} for '{room_conflict['subject']}' at {tt_time} on {day}."}, 400)
+
+        # 3. Faculty conflict
+        if faculty and faculty.lower() not in ["", "tba"]:
+            if tt_id:
+                cursor.execute("SELECT id, department, subject FROM timetable WHERE faculty=%s AND day=%s AND time=%s AND id!=%s", (faculty, day, tt_time, tt_id))
+            else:
+                cursor.execute("SELECT id, department, subject FROM timetable WHERE faculty=%s AND day=%s AND time=%s", (faculty, day, tt_time))
+            faculty_conflict = cursor.fetchone()
+            if faculty_conflict:
+                return handler_instance._send_json({"success": False, "message": f"Faculty conflict: Faculty '{faculty}' is already assigned to {faculty_conflict['department']} ('{faculty_conflict['subject']}') at {tt_time} on {day}."}, 400)
+
         if tt_id:
             cursor.execute(
                 "UPDATE timetable SET department=%s, semester=%s, division=%s, day=%s, time=%s, subject=%s, faculty=%s, room=%s WHERE id=%s",

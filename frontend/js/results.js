@@ -58,6 +58,7 @@ function renderResultsTable(recs) {
         <td>${docBadge}</td>
         <td class="action-col text-end me-3">
           ${!isStudent ? `
+            <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="editResult(${r.id})" title="Edit Result"><i class="bi bi-pencil"></i></button>
             <label class="btn btn-sm btn-outline-primary mb-0 py-0 px-2 me-1" title="Upload/Attach Marksheet Photo or Document">
               <i class="bi bi-paperclip"></i>
               <input type="file" class="d-none" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onchange="uploadResultDocument(${r.id}, this)">
@@ -72,6 +73,30 @@ function renderResultsTable(recs) {
   if (isStudent) {
     document.querySelectorAll(".action-col").forEach(el => el.style.display = "none");
   }
+}
+
+let editingResultId = null;
+
+function editResult(id) {
+  const r = allResults.find(x => x.id == id);
+  if (!r) return;
+  editingResultId = id;
+
+  const sIdEl = document.getElementById("resStudentId");
+  const sNameEl = document.getElementById("resStudentName");
+  const semEl = document.getElementById("resSemester");
+  const subjEl = document.getElementById("resSubject");
+  const intEl = document.getElementById("resInternal");
+  const endEl = document.getElementById("resEndSem");
+
+  if (sIdEl) sIdEl.value = r.student_id || "";
+  if (sNameEl) sNameEl.value = r.student_name || "";
+  if (semEl) semEl.value = r.semester || "Semester 1";
+  if (subjEl) subjEl.value = r.subject || "";
+  if (intEl) intEl.value = r.internal_marks !== undefined ? r.internal_marks : "";
+  if (endEl) endEl.value = r.end_sem_marks !== undefined ? r.end_sem_marks : "";
+
+  openModal("addResultModal");
 }
 
 function filterResultsTable() {
@@ -95,6 +120,7 @@ function exportResultsFile() {
 async function saveResultForm(e) {
   e.preventDefault();
   const payload = {
+    id: editingResultId,
     studentId: document.getElementById("resStudentId").value.trim(),
     studentName: document.getElementById("resStudentName").value.trim(),
     semester: document.getElementById("resSemester").value,
@@ -110,10 +136,11 @@ async function saveResultForm(e) {
 
   if (res.success) {
     const fileInput = document.getElementById("resDocumentInput");
-    if (fileInput && fileInput.files && fileInput.files.length > 0 && res.id) {
-      await uploadResultDocumentFile(res.id, fileInput.files[0]);
+    if (fileInput && fileInput.files && fileInput.files.length > 0 && (res.id || editingResultId)) {
+      await uploadResultDocumentFile(res.id || editingResultId, fileInput.files[0]);
     }
     showToast(res.message || "Exam result saved successfully!", "success");
+    editingResultId = null;
     closeModal("addResultModal");
     loadResultsData();
   } else {

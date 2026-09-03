@@ -73,9 +73,46 @@ def handle_delete_departments(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("DELETE FROM departments WHERE id = %s", (item_id,))
+        cursor.execute("SELECT * FROM departments WHERE id = %s OR code = %s OR name = %s", (item_id, item_id, item_id))
+        dept_row = cursor.fetchone()
+        if not dept_row:
+            return handler_instance._send_json({"success": True, "message": "Department not found or already deleted"})
+
+        dept_name = dept_row["name"]
+
+        # Check students
+        cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (dept_name,))
+        stu_cnt = cursor.fetchone()["count"]
+        if stu_cnt > 0:
+            return handler_instance._send_json({"success": False, "message": f"Cannot delete department '{dept_name}' because {stu_cnt} student record(s) belong to it. Please reassign or delete these students first."}, 400)
+
+        # Check faculty
+        cursor.execute("SELECT COUNT(*) as count FROM faculty WHERE department = %s", (dept_name,))
+        fac_cnt = cursor.fetchone()["count"]
+        if fac_cnt > 0:
+            return handler_instance._send_json({"success": False, "message": f"Cannot delete department '{dept_name}' because {fac_cnt} faculty member(s) belong to it. Please reassign or delete these faculty members first."}, 400)
+
+        # Check HOD
+        cursor.execute("SELECT COUNT(*) as count FROM hods WHERE department = %s", (dept_name,))
+        hod_cnt = cursor.fetchone()["count"]
+        if hod_cnt > 0:
+            return handler_instance._send_json({"success": False, "message": f"Cannot delete department '{dept_name}' because an assigned HOD exists. Please remove the HOD assignment first."}, 400)
+
+        # Check Timetable
+        cursor.execute("SELECT COUNT(*) as count FROM timetable WHERE department = %s", (dept_name,))
+        tt_cnt = cursor.fetchone()["count"]
+        if tt_cnt > 0:
+            return handler_instance._send_json({"success": False, "message": f"Cannot delete department '{dept_name}' because {tt_cnt} timetable slot(s) exist for it."}, 400)
+
+        # Check Subjects
+        cursor.execute("SELECT COUNT(*) as count FROM subjects WHERE department = %s", (dept_name,))
+        sub_cnt = cursor.fetchone()["count"]
+        if sub_cnt > 0:
+            return handler_instance._send_json({"success": False, "message": f"Cannot delete department '{dept_name}' because {sub_cnt} subject(s) are associated with it."}, 400)
+
+        cursor.execute("DELETE FROM departments WHERE id = %s", (dept_row["id"],))
         conn.commit()
-        return handler_instance._send_json({"success": True, "message": "Department deleted successfully"})
+        return handler_instance._send_json({"success": True, "message": f"Department '{dept_name}' deleted successfully"})
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": str(e)}, 500)

@@ -43,7 +43,8 @@ function renderTimetableTable(recs) {
       <td><span class="badge bg-light text-dark border">${t.room}</span></td>
       <td class="action-col">
         ${canEdit ? `
-          <button class="btn btn-sm btn-outline-danger" onclick="deleteTimetableSlot(${t.id})" title="Delete"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="editTimetableSlot(${t.id})" title="Edit Slot"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteTimetableSlot(${t.id})" title="Delete"><i class="bi bi-trash"></i></button>
         ` : `<span class="text-muted small">View Only</span>`}
       </td>
     </tr>
@@ -52,6 +53,34 @@ function renderTimetableTable(recs) {
   if (!canEdit) {
     document.querySelectorAll(".action-col").forEach(el => el.style.display = "none");
   }
+}
+
+let editingTimetableId = null;
+
+function editTimetableSlot(id) {
+  const t = allTimetable.find(x => x.id == id);
+  if (!t) return;
+  editingTimetableId = id;
+
+  const dayEl = document.getElementById("ttDay");
+  const timeEl = document.getElementById("ttTime");
+  const deptEl = document.getElementById("ttDepartment");
+  const semEl = document.getElementById("ttSemester");
+  const divEl = document.getElementById("ttDivision");
+  const roomEl = document.getElementById("ttRoom");
+  const subjEl = document.getElementById("ttSubject");
+  const facEl = document.getElementById("ttFaculty");
+
+  if (dayEl) dayEl.value = t.day || "Monday";
+  if (timeEl) timeEl.value = t.time || "";
+  if (deptEl) deptEl.value = t.department || "Computer Engineering";
+  if (semEl) semEl.value = t.semester || "Semester 1";
+  if (divEl) divEl.value = t.division || "A";
+  if (roomEl) roomEl.value = t.room || "";
+  if (subjEl) subjEl.value = t.subject || "";
+  if (facEl) facEl.value = t.faculty || "";
+
+  openModal("addTimetableModal");
 }
 
 function filterTimetableTable() {
@@ -72,6 +101,7 @@ function filterTimetableTable() {
 async function saveTimetableForm(e) {
   e.preventDefault();
   const payload = {
+    id: editingTimetableId,
     day: document.getElementById("ttDay").value,
     time: document.getElementById("ttTime").value.trim(),
     department: document.getElementById("ttDepartment").value,
@@ -89,6 +119,7 @@ async function saveTimetableForm(e) {
 
   if (res.success) {
     showToast(res.message || "Timetable slot saved!", "success");
+    editingTimetableId = null;
     closeModal("addTimetableModal");
     loadTimetableData();
   } else {

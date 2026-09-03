@@ -146,6 +146,24 @@ def handle_get_results_export(handler_instance, query_params, body):
 
 register_route('GET', '/api/results/export', handle_get_results_export)
 
+def calculate_grade_and_status(internal_marks, end_sem_marks):
+    total = internal_marks + end_sem_marks
+    percentage = round((total / 100.0) * 100.0, 1) if total <= 100 else round(total, 1)
+    if percentage >= 90:
+        grade = "A+"
+    elif percentage >= 80:
+        grade = "A"
+    elif percentage >= 70:
+        grade = "B"
+    elif percentage >= 60:
+        grade = "C"
+    elif percentage >= 40:
+        grade = "D"
+    else:
+        grade = "F"
+    res_status = "Pass" if percentage >= 40 else "Fail"
+    return total, percentage, grade, res_status
+
 def handle_post_results_import_excel(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
     if not user:
@@ -228,6 +246,11 @@ def handle_post_results_import_excel(handler_instance, query_params, body):
                 errors.append({"row": r_num, "student_id": stu_id, "name": name or "N/A", "reason": f"Invalid marks values: internal='{internal_str}', end_sem='{end_sem_str}'"})
                 continue
 
+            if internal < 0 or end_sem < 0 or internal > 50 or end_sem > 100 or (internal + end_sem) > 100:
+                fail_cnt += 1
+                errors.append({"row": r_num, "student_id": stu_id, "name": name or "N/A", "reason": f"Marks out of allowed range: Internal ({internal}), End Sem ({end_sem}), Total ({internal + end_sem})"})
+                continue
+
             cursor.execute("SELECT id, name, department FROM students WHERE id = %s", (stu_id,))
             stu_row = cursor.fetchone()
             if not stu_row:
@@ -239,7 +262,7 @@ def handle_post_results_import_excel(handler_instance, query_params, body):
             target_dept = dept if dept else (stu_row["department"] if stu_row else user_dept)
 
             if role == "Faculty":
-                if not is_student_assigned_to_faculty(cursor, faculty_id, stu_id):
+                if not is_student_assigned_to_faculty(cursor, user.get("faculty_id"), stu_id):
                     fail_cnt += 1
                     errors.append({"row": r_num, "student_id": stu_id, "name": target_name, "reason": "Student is not assigned to you."})
                     continue
@@ -257,10 +280,7 @@ def handle_post_results_import_excel(handler_instance, query_params, body):
 
             seen_results.add(res_key)
 
-            total = internal + end_sem
-            percentage = round((total / 100.0) * 100.0, 1)
-            grade = "A+" if percentage >= 85 else "A" if percentage >= 75 else "B" if percentage >= 60 else "C" if percentage >= 50 else "F"
-            res_status = "Pass" if percentage >= 40 and end_sem >= 28 else "Fail"
+            total, percentage, grade, res_status = calculate_grade_and_status(internal, end_sem)
 
             cursor.execute("SELECT id FROM results WHERE student_id = %s AND subject = %s AND semester = %s", (stu_id, subject, sem))
             existing = cursor.fetchone()
@@ -371,15 +391,23 @@ def handle_post_results(handler_instance, query_params, body):
     s_name = (body.get("studentName") or body.get("student_name") or "Student").strip()
     subject = (body.get("subject") or "").strip()
     semester = body.get("semester", "Semester 1")
-    internal = float(body.get("internalMarks", 0))
-    end_sem = float(body.get("endSemMarks", 0))
-    total = internal + end_sem
-    percentage = round((total / 100.0) * 100, 1)
-    grade = "A+" if percentage >= 90 else "A" if percentage >= 80 else "B" if percentage >= 70 else "C" if percentage >= 60 else "D" if percentage >= 40 else "F"
-    res_status = "Pass" if percentage >= 40 else "Fail"
+    
+    try:
+        internal = float(body.get("internalMarks", 0))
+        end_sem = float(body.get("endSemMarks", 0))
+    except (ValueError, TypeError):
+        return handler_instance._send_json({"success": False, "message": "Marks must be valid numbers"}, 400)
 
     if not s_id or not subject:
         return handler_instance._send_json({"success": False, "message": "Student ID and Subject are required"}, 400)
+
+    if internal < 0 or end_sem < 0 or internal > 50 or end_sem > 100 or (internal + end_sem) > 100:
+        return handler_instance._send_json({
+            "success": False, 
+            "message": "Invalid marks. Internal marks (0-50), End Sem marks (0-100), and Total marks cannot exceed 100."
+        }, 400)
+
+    total, percentage, grade, res_status = calculate_grade_and_status(internal, end_sem)
 
     conn = get_db_connection()
     if not conn:
@@ -421,12 +449,22 @@ def handle_post_results(handler_instance, query_params, body):
                 if stu_row.get("department") != user_dept:
                     return handler_instance._send_json({"success": False, "message": "Permission denied: You can only create results for students in your department"}, 403)
 
-            cursor.execute(
-                """INSERT INTO results (student_id, student_name, subject, semester, internal_marks, end_sem_marks, total_marks, percentage, grade, status, document)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '')""",
-                (s_id, s_name, subject, semester, internal, end_sem, total, percentage, grade, res_status)
-            )
-            res_id = cursor.lastrowid
+            cursor.execute("SELECT id FROM results WHERE student_id = %s AND subject = %s AND semester = %s", (s_id, subject, semester))
+            existing_duplicate = cursor.fetchone()
+            if existing_duplicate:
+                cursor.execute(
+                    """UPDATE results SET student_name=%s, internal_marks=%s, end_sem_marks=%s, total_marks=%s, percentage=%s, grade=%s, status=%s
+                       WHERE id=%s""",
+                    (s_name, internal, end_sem, total, percentage, grade, res_status, existing_duplicate["id"])
+                )
+                res_id = existing_duplicate["id"]
+            else:
+                cursor.execute(
+                    """INSERT INTO results (student_id, student_name, subject, semester, internal_marks, end_sem_marks, total_marks, percentage, grade, status, document)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '')""",
+                    (s_id, s_name, subject, semester, internal, end_sem, total, percentage, grade, res_status)
+                )
+                res_id = cursor.lastrowid
 
         conn.commit()
         return handler_instance._send_json({"success": True, "message": "Result record saved successfully!", "id": res_id})

@@ -70,56 +70,94 @@ function renderDocTable(docs) {
       <td class="small text-muted">${d.upload_date ? d.upload_date.split(' ')[0] : 'N/A'}</td>
       <td>
         <a href="${d.file_path || '#'}" target="_blank" class="btn btn-sm btn-outline-primary me-1" title="View/Download"><i class="bi bi-download"></i></a>
-        ${canManage ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteDocument('${d.id}')" title="Delete"><i class="bi bi-trash"></i></button>` : ''}
+        ${canManage ? `
+          <button class="btn btn-sm btn-outline-primary me-1" onclick="editDocument('${d.id}')" title="Edit Metadata"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteDocument('${d.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+        ` : ''}
       </td>
     </tr>
   `;
   }).join("");
 }
 
+let editingDocId = null;
+
+function editDocument(docId) {
+  const d = allDocs.find(x => x.id === docId);
+  if (!d) return;
+  editingDocId = docId;
+
+  const titleEl = document.getElementById("modalDocTitle");
+  const catEl = document.getElementById("modalDocCategory");
+  const deptEl = document.getElementById("modalDocDept");
+  const semEl = document.getElementById("modalDocSemester");
+  const subjEl = document.getElementById("modalDocSubject");
+
+  if (titleEl) titleEl.value = d.title || "";
+  if (catEl) catEl.value = d.category || "Notes";
+  if (deptEl) deptEl.value = d.department || "All";
+  if (semEl) semEl.value = d.semester || "All";
+  if (subjEl) subjEl.value = d.subject || "";
+
+  openModal("addDocumentModal");
+}
+
 async function saveDocumentForm(e) {
   e.preventDefault();
   const fileInput = document.getElementById("modalDocFileInput");
-  if (!fileInput.files || fileInput.files.length === 0) {
+  
+  if (!editingDocId && (!fileInput.files || fileInput.files.length === 0)) {
     showToast("Please select a file to upload!", "warning");
     return;
   }
 
   const submitBtn = e.target.querySelector("button[type='submit']");
-  const originalText = submitBtn ? submitBtn.innerHTML : "Upload Document";
+  const originalText = submitBtn ? submitBtn.innerHTML : "Save Document";
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Uploading...`;
+    submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Saving...`;
   }
 
-  const file = fileInput.files[0];
-  const formData = new FormData();
-  formData.append("file", file);
+  let finalFilePath = "";
+  if (editingDocId) {
+    const existing = allDocs.find(x => x.id === editingDocId);
+    if (existing && existing.file_path) {
+      finalFilePath = existing.file_path;
+    }
+  }
 
   try {
-    const uploadRes = await fetch("/api/upload", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${getSessionToken()}`,
-        "X-Session-Token": getSessionToken()
-      },
-      body: formData
-    });
-    const uploadJson = await uploadRes.json();
+    if (fileInput.files && fileInput.files.length > 0) {
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
 
-    if (!uploadJson.success) {
-      showToast(uploadJson.message || "File upload failed!", "danger");
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = originalText; }
-      return;
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${getSessionToken()}`,
+          "X-Session-Token": getSessionToken()
+        },
+        body: formData
+      });
+      const uploadJson = await uploadRes.json();
+
+      if (!uploadJson.success) {
+        showToast(uploadJson.message || "File upload failed!", "danger");
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = originalText; }
+        return;
+      }
+      finalFilePath = uploadJson.filePath;
     }
 
     const payload = {
+      id: editingDocId,
       title: document.getElementById("modalDocTitle").value.trim(),
       category: document.getElementById("modalDocCategory").value,
       department: document.getElementById("modalDocDept").value,
       semester: document.getElementById("modalDocSemester").value,
       subject: document.getElementById("modalDocSubject").value.trim(),
-      filePath: uploadJson.filePath
+      filePath: finalFilePath
     };
 
     const res = await fetchAPI("/api/documents", {
@@ -128,7 +166,8 @@ async function saveDocumentForm(e) {
     });
 
     if (res.success) {
-      showToast("Document uploaded successfully!", "success");
+      showToast(res.message || "Document saved successfully!", "success");
+      editingDocId = null;
       closeModal("addDocumentModal");
       document.getElementById("docModalForm").reset();
       loadDocumentData();
@@ -136,7 +175,7 @@ async function saveDocumentForm(e) {
       showToast(res.message || "Failed to save document record", "danger");
     }
   } catch (err) {
-    showToast(err?.message || "Error uploading file to server", "danger");
+    showToast(err?.message || "Error saving document", "danger");
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;

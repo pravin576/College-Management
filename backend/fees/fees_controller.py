@@ -120,7 +120,13 @@ def handle_post_fees(handler_instance, query_params, body):
             if fee_row:
                 curr_paid = float(fee_row["paid_fees"])
                 total_f = float(fee_row["total_fees"])
-                new_paid = min(total_f, curr_paid + pay_amount)
+                curr_pending = max(0.0, total_f - curr_paid)
+
+                if curr_pending <= 0:
+                    return handler_instance._send_json({"success": False, "message": "All fees are already fully paid. No pending balance remaining."}, 400)
+
+                actual_paid = min(pay_amount, curr_pending)
+                new_paid = curr_paid + actual_paid
                 new_pending = max(0.0, total_f - new_paid)
                 pay_status = "Paid" if new_pending <= 0 else "Partial"
                 cursor.execute(
@@ -128,7 +134,7 @@ def handle_post_fees(handler_instance, query_params, body):
                     (new_paid, new_pending, time.strftime('%Y-%m-%d'), pay_status, s_id)
                 )
                 conn.commit()
-                return handler_instance._send_json({"success": True, "message": f"Payment of ₹{pay_amount} processed successfully!"})
+                return handler_instance._send_json({"success": True, "message": f"Payment of ₹{actual_paid:g} processed successfully! Remaining Pending Fees: ₹{new_pending:g}."})
             else:
                 return handler_instance._send_json({"success": False, "message": "No fee record assigned for student"}, 404)
 
@@ -154,6 +160,10 @@ def handle_post_fees(handler_instance, query_params, body):
                 return handler_instance._send_json({"success": False, "message": "Cannot manage fees for students outside your department"}, 403)
 
         if fee_id:
+            cursor.execute("SELECT id FROM fees WHERE student_id = %s AND id != %s", (s_id, fee_id))
+            if cursor.fetchone():
+                return handler_instance._send_json({"success": False, "message": f"A fee record already exists for student ID '{s_id}'."}, 400)
+
             cursor.execute(
                 "UPDATE fees SET student_id=%s, student_name=%s, department=%s, total_fees=%s, paid_fees=%s, pending_fees=%s, payment_date=%s, payment_status=%s WHERE id=%s",
                 (s_id, s_name, dept, total_fees, paid_fees, pending_fees, p_date, pay_status, fee_id)

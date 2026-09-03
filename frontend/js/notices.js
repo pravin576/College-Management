@@ -58,7 +58,10 @@ function renderNoticesCards(notices) {
         <div class="card-footer bg-light d-flex justify-content-between align-items-center">
           <small class="text-muted">By: <strong>${n.author || 'Administration'}</strong></small>
           ${canDelete ? `
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteNotice('${n.id}')" title="Delete Notice"><i class="bi bi-trash"></i></button>
+            <div>
+              <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="editNotice('${n.id}')" title="Edit Notice"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteNotice('${n.id}')" title="Delete Notice"><i class="bi bi-trash"></i></button>
+            </div>
           ` : ''}
         </div>
       </div>
@@ -66,10 +69,39 @@ function renderNoticesCards(notices) {
   `).join("");
 }
 
+let editingNoticeId = null;
+
+function editNotice(id) {
+  const n = allNotices.find(x => x.id === id);
+  if (!n) return;
+  editingNoticeId = id;
+
+  const titleEl = document.getElementById("noticeTitle");
+  const deptEl = document.getElementById("noticeDepartment");
+  const roleEl = document.getElementById("noticeTargetRole");
+  const prioEl = document.getElementById("noticePriority");
+  const descEl = document.getElementById("noticeDescription");
+
+  if (titleEl) titleEl.value = n.title || "";
+  if (deptEl) deptEl.value = n.department || "All";
+  if (roleEl) roleEl.value = n.target_role || "All";
+  if (prioEl) prioEl.value = n.priority || "Medium";
+  if (descEl) descEl.value = n.description || "";
+
+  openModal("publishNoticeModal");
+}
+
 async function saveNoticeForm(e) {
   e.preventDefault();
   
   let attachmentUrl = "";
+  if (editingNoticeId) {
+    const existing = allNotices.find(x => x.id === editingNoticeId);
+    if (existing && existing.attachment) {
+      attachmentUrl = existing.attachment;
+    }
+  }
+
   const fileInput = document.getElementById("noticeFileInput");
   if (fileInput && fileInput.files.length > 0) {
     const file = fileInput.files[0];
@@ -89,6 +121,7 @@ async function saveNoticeForm(e) {
   }
 
   const payload = {
+    id: editingNoticeId,
     title: document.getElementById("noticeTitle").value.trim(),
     department: document.getElementById("noticeDepartment").value,
     targetRole: document.getElementById("noticeTargetRole").value,
@@ -105,6 +138,7 @@ async function saveNoticeForm(e) {
 
   if (res.success) {
     showToast(res.message || "Notice published successfully!", "success");
+    editingNoticeId = null;
     closeModal("publishNoticeModal");
     loadNoticesData();
   } else {

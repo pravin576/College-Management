@@ -46,7 +46,8 @@ function renderAttendanceTable(recs) {
       </td>
       <td class="action-col text-end me-3">
         ${!isStudent ? `
-          <button class="btn btn-sm btn-outline-danger" onclick="deleteAttendance(${a.id})" title="Delete"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="editAttendance(${a.id})" title="Edit Attendance"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteAttendance(${a.id})" title="Delete"><i class="bi bi-trash"></i></button>
         ` : `<span class="text-muted small">View Only</span>`}
       </td>
     </tr>
@@ -55,6 +56,27 @@ function renderAttendanceTable(recs) {
   if (isStudent) {
     document.querySelectorAll(".action-col").forEach(el => el.style.display = "none");
   }
+}
+
+let editingAttendanceId = null;
+
+function editAttendance(id) {
+  const a = allAttendance.find(x => x.id == id);
+  if (!a) return;
+  editingAttendanceId = id;
+  const sIdEl = document.getElementById("attStudentId");
+  const sNameEl = document.getElementById("attStudentName");
+  const subjEl = document.getElementById("attSubject");
+  const dateEl = document.getElementById("attDate");
+  const statusEl = document.getElementById("attStatus");
+
+  if (sIdEl) sIdEl.value = a.student_id || "";
+  if (sNameEl) sNameEl.value = a.student_name || "";
+  if (subjEl) subjEl.value = a.subject || "";
+  if (dateEl) dateEl.value = a.date || "";
+  if (statusEl) statusEl.value = a.status || "Present";
+
+  openModal("markAttendanceModal");
 }
 
 function filterAttendanceTable() {
@@ -87,6 +109,7 @@ function exportAttendanceCSV() {
 async function saveAttendanceForm(e) {
   e.preventDefault();
   const payload = {
+    id: editingAttendanceId,
     studentId: document.getElementById("attStudentId").value.trim(),
     studentName: document.getElementById("attStudentName").value.trim(),
     subject: document.getElementById("attSubject").value.trim(),
@@ -101,6 +124,7 @@ async function saveAttendanceForm(e) {
 
   if (res.success) {
     showToast(res.message || "Attendance record saved!", "success");
+    editingAttendanceId = null;
     closeModal("markAttendanceModal");
     loadAttendanceData();
   } else {

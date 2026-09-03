@@ -48,9 +48,9 @@ def handle_forgot_password(handler_instance, query_params, body):
             # 1. First search in users table directly
             query = """
                 SELECT * FROM users 
-                WHERE (LOWER(username) = LOWER(%s) OR LOWER(email) = LOWER(%s) OR mobile = %s OR student_id = %s OR faculty_id = %s)
+                WHERE (LOWER(username) = LOWER(%s) OR LOWER(email) = LOWER(%s) OR mobile = %s OR student_id = %s OR faculty_id = %s OR LOWER(name) = LOWER(%s))
             """
-            params = [identifier, identifier, identifier, identifier, identifier]
+            params = [identifier, identifier, identifier, identifier, identifier, identifier]
 
             if role and role != "All":
                 query += " AND role = %s"
@@ -61,8 +61,8 @@ def handle_forgot_password(handler_instance, query_params, body):
 
             # 2. Fallback: Search students table if looking for Student or role is not specified
             if not user and (not role or role == "Student" or role == "All"):
-                cursor.execute("SELECT id, email, mobile FROM students WHERE roll_number = %s OR id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s",
-                               (identifier, identifier, identifier, identifier))
+                cursor.execute("SELECT id, email, mobile FROM students WHERE roll_number = %s OR id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s OR LOWER(name) = LOWER(%s)",
+                               (identifier, identifier, identifier, identifier, identifier))
                 st = cursor.fetchone()
                 if st:
                     cursor.execute("SELECT * FROM users WHERE student_id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s",
@@ -71,8 +71,8 @@ def handle_forgot_password(handler_instance, query_params, body):
 
             # 3. Fallback: Search faculty table
             if not user and (not role or role in ["Faculty", "All"]):
-                cursor.execute("SELECT id, email, mobile FROM faculty WHERE id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s",
-                               (identifier, identifier, identifier))
+                cursor.execute("SELECT id, email, mobile FROM faculty WHERE id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s OR LOWER(name) = LOWER(%s)",
+                               (identifier, identifier, identifier, identifier))
                 fac = cursor.fetchone()
                 if fac:
                     cursor.execute("SELECT * FROM users WHERE faculty_id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s",
@@ -81,8 +81,8 @@ def handle_forgot_password(handler_instance, query_params, body):
 
             # 4. Fallback: Search hods table
             if not user and (not role or role in ["HOD", "All"]):
-                cursor.execute("SELECT faculty_id, email, contact FROM hods WHERE faculty_id = %s OR LOWER(email) = LOWER(%s) OR contact = %s",
-                               (identifier, identifier, identifier))
+                cursor.execute("SELECT faculty_id, email, contact FROM hods WHERE faculty_id = %s OR LOWER(email) = LOWER(%s) OR contact = %s OR LOWER(name) = LOWER(%s)",
+                               (identifier, identifier, identifier, identifier))
                 hod = cursor.fetchone()
                 if hod:
                     cursor.execute("SELECT * FROM users WHERE faculty_id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s",
@@ -143,9 +143,38 @@ def handle_forgot_password(handler_instance, query_params, body):
             if len(new_password) < 6:
                 return handler_instance._send_json({"success": False, "message": "Password must be at least 6 characters long."}, 400)
 
-            # Retrieve user
-            cursor.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(%s)", (username,))
+            # Retrieve user across username, email, student_id, faculty_id, mobile, or name
+            cursor.execute("""
+                SELECT * FROM users 
+                WHERE LOWER(username) = LOWER(%s) 
+                   OR LOWER(email) = LOWER(%s) 
+                   OR student_id = %s 
+                   OR faculty_id = %s 
+                   OR mobile = %s 
+                   OR LOWER(name) = LOWER(%s)
+            """, (username, username, username, username, username, username))
             user = cursor.fetchone()
+
+            # Fallback if username was roll_number or student/faculty ID
+            if not user:
+                cursor.execute("SELECT id, email, mobile FROM students WHERE roll_number = %s OR id = %s OR LOWER(name) = LOWER(%s)", (username, username, username))
+                st = cursor.fetchone()
+                if st:
+                    cursor.execute("SELECT * FROM users WHERE student_id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s", (st["id"], st["email"], st["mobile"]))
+                    user = cursor.fetchone()
+            if not user:
+                cursor.execute("SELECT id, email, mobile FROM faculty WHERE id = %s OR LOWER(name) = LOWER(%s)", (username, username))
+                fac = cursor.fetchone()
+                if fac:
+                    cursor.execute("SELECT * FROM users WHERE faculty_id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s", (fac["id"], fac["email"], fac["mobile"]))
+                    user = cursor.fetchone()
+            if not user:
+                cursor.execute("SELECT faculty_id, email, contact FROM hods WHERE faculty_id = %s OR LOWER(name) = LOWER(%s)", (username, username))
+                hod = cursor.fetchone()
+                if hod:
+                    cursor.execute("SELECT * FROM users WHERE faculty_id = %s OR LOWER(email) = LOWER(%s) OR mobile = %s", (hod.get("faculty_id"), hod.get("email"), hod.get("contact")))
+                    user = cursor.fetchone()
+
             if not user:
                 return handler_instance._send_json({"success": False, "message": "User account not found."}, 404)
 

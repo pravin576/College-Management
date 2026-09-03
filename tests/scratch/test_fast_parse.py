@@ -6,7 +6,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from app import create_student_template_xlsx
+from backend.app import create_student_template_xlsx
 
 def fast_parse_xlsx_bytes(file_bytes):
     rows_data = []

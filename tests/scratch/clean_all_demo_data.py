@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from app import hash_password, get_db_connection
+from backend.app import hash_password, get_db_connection
 
 def clean_database():
     conn = get_db_connection()

@@ -5,7 +5,7 @@ import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from app import create_results_template_xlsx
+from backend.app import create_results_template_xlsx
 
 BASE_URL = "http://localhost:8000"
 

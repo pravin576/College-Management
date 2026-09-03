@@ -6,7 +6,7 @@ import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from app import build_xlsx_bytes, parse_xlsx_bytes
+from backend.app import build_xlsx_bytes, parse_xlsx_bytes
 
 BASE_URL = "http://localhost:8000"
 

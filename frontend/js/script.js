@@ -170,7 +170,10 @@ async function checkAuth() {
     localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
     updateSidebarUserUI(data.user);
     applyRoleVisibility(data.user);
-    if (window.location.pathname.endsWith("login.html")) {
+
+    if (data.must_change_password || data.user.must_change_password) {
+      showFirstLoginPasswordModal(data.user);
+    } else if (window.location.pathname.endsWith("login.html")) {
       window.location.href = "dashboard.html";
     }
     return data.user;
@@ -315,6 +318,12 @@ async function handleLoginSubmit(e) {
   if (data.success && data.user) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
     localStorage.setItem(TOKEN_KEY, data.token || "");
+
+    if (data.must_change_password || data.user.must_change_password) {
+      showFirstLoginPasswordModal(data.user);
+      return;
+    }
+
     showToast("Login successful! Redirecting to dashboard...", "success");
     setTimeout(() => { window.location.href = "dashboard.html"; }, 500);
   } else {
@@ -640,3 +649,293 @@ document.addEventListener("DOMContentLoaded", () => {
     checkAuth();
   }
 });
+
+// ----------------------------------------------------------------------------
+// CREDENTIAL DELIVERY MODAL & HELPERS
+// ----------------------------------------------------------------------------
+function showCredentialModal(cred) {
+  if (!cred) return;
+
+  let modalEl = document.getElementById("credentialDeliveryModal");
+  if (!modalEl) {
+    const modalHTML = `
+      <div class="modal fade" id="credentialDeliveryModal" tabindex="-1" style="background: rgba(0,0,0,0.65); z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header bg-primary text-white py-3">
+              <h5 class="modal-title fw-bold mb-0"><i class="bi bi-shield-lock-fill me-2"></i> Account Created & Credentials</h5>
+              <button type="button" class="btn-close btn-close-white" onclick="closeCredentialModal()"></button>
+            </div>
+            <div class="modal-body p-4">
+              <div class="alert alert-info py-2 px-3 small d-flex align-items-center mb-3">
+                <i class="bi bi-info-circle-fill fs-5 me-2 text-primary"></i>
+                <span>Login credentials have been securely provisioned. Provide these to the user.</span>
+              </div>
+              
+              <div class="card bg-light border p-3 mb-3 shadow-none" id="credentialPrintArea">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted small">Account Role:</span>
+                  <span class="badge bg-primary" id="credRole">Role</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted small">Full Name:</span>
+                  <span class="fw-bold text-dark" id="credName">-</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2" id="credDeptRow">
+                  <span class="text-muted small">Department:</span>
+                  <span class="fw-semibold text-secondary" id="credDept">-</span>
+                </div>
+                <hr class="my-2 text-muted">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted small fw-bold">Login Username:</span>
+                  <div class="d-flex align-items-center gap-2">
+                    <code class="fs-6 fw-bold text-dark px-2 py-1 bg-white border rounded" id="credUsername">-</code>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyCredField('credUsername', this)" title="Copy Username"><i class="bi bi-clipboard"></i></button>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="text-muted small fw-bold">Temporary Password:</span>
+                  <div class="d-flex align-items-center gap-2">
+                    <code class="fs-6 fw-bold text-danger px-2 py-1 bg-white border rounded" id="credPassword">-</code>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyCredField('credPassword', this)" title="Copy Password"><i class="bi bi-clipboard"></i></button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="alert alert-warning py-2 px-3 small mb-3 border-warning">
+                <i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
+                <strong>Mandatory Password Change:</strong> This temporary password must be changed during first login.
+              </div>
+
+              <div class="d-flex gap-2 justify-content-between flex-wrap">
+                <button class="btn btn-outline-primary btn-sm flex-fill fw-bold" onclick="copyAllCredentials(this)"><i class="bi bi-clipboard-check me-1"></i> Copy All</button>
+                <button class="btn btn-outline-secondary btn-sm flex-fill fw-bold" onclick="printCredentials()"><i class="bi bi-printer me-1"></i> Print Slip</button>
+              </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+              <button type="button" class="btn btn-primary px-4 fw-bold" onclick="closeCredentialModal()">Done</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    modalEl = document.getElementById("credentialDeliveryModal");
+  }
+
+  const roleBadge = document.getElementById("credRole");
+  const nameEl = document.getElementById("credName");
+  const deptEl = document.getElementById("credDept");
+  const userEl = document.getElementById("credUsername");
+  const passEl = document.getElementById("credPassword");
+
+  if (roleBadge) roleBadge.textContent = cred.role || "User";
+  if (nameEl) nameEl.textContent = cred.name || "User";
+  if (deptEl) deptEl.textContent = cred.department || "General";
+  if (userEl) userEl.textContent = cred.username || cred.enrollmentNumber || cred.facultyId || "-";
+  if (passEl) passEl.textContent = cred.temporaryPassword || "-";
+
+  modalEl.style.display = "block";
+  modalEl.classList.add("show");
+}
+
+function closeCredentialModal() {
+  const modalEl = document.getElementById("credentialDeliveryModal");
+  if (modalEl) {
+    modalEl.style.display = "none";
+    modalEl.classList.remove("show");
+  }
+}
+
+function copyCredField(elemId, btnEl) {
+  const el = document.getElementById(elemId);
+  if (!el) return;
+  const text = el.textContent.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    showToast("Copied to clipboard!", "success");
+    if (btnEl) {
+      const orig = btnEl.innerHTML;
+      btnEl.innerHTML = '<i class="bi bi-check2"></i>';
+      setTimeout(() => { btnEl.innerHTML = orig; }, 1500);
+    }
+  });
+}
+
+function copyAllCredentials(btnEl) {
+  const name = document.getElementById("credName")?.textContent || "";
+  const role = document.getElementById("credRole")?.textContent || "";
+  const dept = document.getElementById("credDept")?.textContent || "";
+  const username = document.getElementById("credUsername")?.textContent || "";
+  const password = document.getElementById("credPassword")?.textContent || "";
+
+  const text = `College Management ERP Login Credentials\n---------------------------------------\nRole: ${role}\nName: ${name}\nDepartment: ${dept}\nLogin Username: ${username}\nTemporary Password: ${password}\n---------------------------------------\nNote: You will be prompted to change this temporary password upon your first login.`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    showToast("All credentials copied to clipboard!", "success");
+    if (btnEl) {
+      const orig = btnEl.innerHTML;
+      btnEl.innerHTML = '<i class="bi bi-check2 me-1"></i> Copied!';
+      setTimeout(() => { btnEl.innerHTML = orig; }, 1800);
+    }
+  });
+}
+
+function printCredentials() {
+  const printContent = document.getElementById("credentialPrintArea");
+  if (!printContent) return;
+
+  const printWindow = window.open("", "_blank", "width=600,height=500");
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Account Login Slip</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+        <style>
+          body { font-family: sans-serif; padding: 25px; }
+          .slip-box { border: 2px dashed #0d6efd; padding: 20px; border-radius: 8px; max-width: 450px; margin: auto; }
+          @media print { .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="slip-box">
+          <h4 class="text-center fw-bold text-primary mb-1">College Management ERP</h4>
+          <p class="text-center text-muted small mb-3">Official User Credential Slip</p>
+          ${printContent.innerHTML}
+          <div class="alert alert-warning mt-3 py-2 small">
+            <strong>Important:</strong> Please sign in and update your password on first login.
+          </div>
+          <div class="text-center mt-3 no-print">
+            <button class="btn btn-primary btn-sm px-4" onclick="window.print()">Print</button>
+            <button class="btn btn-secondary btn-sm ms-2" onclick="window.close()">Close</button>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+// ----------------------------------------------------------------------------
+// MANDATORY FIRST-LOGIN PASSWORD CHANGE MODAL
+// ----------------------------------------------------------------------------
+function showFirstLoginPasswordModal(user) {
+  let modalEl = document.getElementById("firstLoginPasswordModal");
+  if (!modalEl) {
+    const modalHTML = `
+      <div class="modal fade" id="firstLoginPasswordModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="background: rgba(0,0,0,0.85); z-index: 1070;">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header bg-danger text-white py-3">
+              <h5 class="modal-title fw-bold mb-0"><i class="bi bi-key-fill me-2"></i> Mandatory First-Login Password Change</h5>
+            </div>
+            <form id="firstLoginChangePassForm" onsubmit="submitFirstLoginPasswordChange(event)">
+              <div class="modal-body p-4">
+                <div class="alert alert-warning py-2 px-3 small mb-3">
+                  <i class="bi bi-shield-exclamation me-1"></i>
+                  <strong>First-Time Sign In:</strong> Your account was provisioned with a temporary password. You must set a new personal password before accessing your dashboard.
+                </div>
+
+                <div id="firstLoginPassAlert" class="alert alert-danger py-2 px-3 small d-none mb-3"></div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold">Current / Temporary Password *</label>
+                  <div class="input-group">
+                    <input type="password" id="firstLoginCurrentPass" class="form-control" required placeholder="Enter temporary password">
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('firstLoginCurrentPass', this)"><i class="bi bi-eye"></i></button>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold">New Password *</label>
+                  <div class="input-group mb-1">
+                    <input type="password" id="firstLoginNewPass" class="form-control" required minlength="6" placeholder="At least 6 characters" oninput="checkPasswordStrength(this.value, 'firstLoginStrengthBox')">
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('firstLoginNewPass', this)"><i class="bi bi-eye"></i></button>
+                  </div>
+                  <div id="firstLoginStrengthBox" class="mt-1 d-none">
+                    <div class="progress" style="height: 5px;">
+                      <div class="progress-bar strength-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                      <span class="text-muted" style="font-size: 11px;">Password Strength:</span>
+                      <span class="badge strength-badge" style="font-size: 10px;">Weak</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-bold">Confirm New Password *</label>
+                  <div class="input-group">
+                    <input type="password" id="firstLoginConfirmPass" class="form-control" required minlength="6" placeholder="Re-enter new password">
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('firstLoginConfirmPass', this)"><i class="bi bi-eye"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer bg-light py-2">
+                <button type="submit" class="btn btn-danger w-100 fw-bold py-2"><i class="bi bi-check-circle me-1"></i> Update Password & Proceed to Dashboard</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
+    modalEl = document.getElementById("firstLoginPasswordModal");
+  }
+  modalEl.style.display = "block";
+  modalEl.classList.add("show");
+}
+
+async function submitFirstLoginPasswordChange(e) {
+  e.preventDefault();
+  const alertEl = document.getElementById("firstLoginPassAlert");
+  if (alertEl) alertEl.classList.add("d-none");
+
+  const currentPassword = document.getElementById("firstLoginCurrentPass").value.trim();
+  const newPassword = document.getElementById("firstLoginNewPass").value.trim();
+  const confirmPassword = document.getElementById("firstLoginConfirmPass").value.trim();
+
+  if (newPassword !== confirmPassword) {
+    if (alertEl) {
+      alertEl.textContent = "New password and Confirm password do not match!";
+      alertEl.classList.remove("d-none");
+    }
+    return;
+  }
+
+  if (currentPassword === newPassword) {
+    if (alertEl) {
+      alertEl.textContent = "New password must be different from your current temporary password!";
+      alertEl.classList.remove("d-none");
+    }
+    return;
+  }
+
+  const res = await fetchAPI("/api/auth/first-login-change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+  });
+
+  if (res.success) {
+    const user = getSession() || {};
+    user.must_change_password = false;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    
+    const modalEl = document.getElementById("firstLoginPasswordModal");
+    if (modalEl) {
+      modalEl.style.display = "none";
+      modalEl.classList.remove("show");
+    }
+    showToast("Password updated successfully! Welcome to your dashboard.", "success");
+    setTimeout(() => {
+      window.location.href = "dashboard.html";
+    }, 400);
+  } else {
+    if (alertEl) {
+      alertEl.textContent = res.message || "Failed to update password. Please verify current password.";
+      alertEl.classList.remove("d-none");
+    } else {
+      showToast(res.message || "Failed to update password", "danger");
+    }
+  }
+}

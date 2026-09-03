@@ -114,9 +114,13 @@ async function saveFacultyForm(e) {
   });
 
   if (res.success) {
-    showToast(res.message || "Faculty saved successfully!", "success");
     closeModal("addFacultyModal");
     loadFacultyData();
+    if (res.credentials) {
+      showCredentialModal(res.credentials);
+    } else {
+      showToast(res.message || "Faculty saved successfully!", "success");
+    }
   } else {
     showToast(res.message || "Failed to save faculty record", "danger");
   }

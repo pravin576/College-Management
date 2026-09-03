@@ -361,9 +361,13 @@ async function saveHodForm(e) {
   });
 
   if (res.success) {
-    showToast(res.message || "HOD assigned successfully!", "success");
     closeModal("addHodModal");
     loadHodData();
+    if (res.credentials) {
+      showCredentialModal(res.credentials);
+    } else {
+      showToast(res.message || "HOD assigned successfully!", "success");
+    }
   } else {
     showToast(res.message || "Failed to save HOD record", "danger");
   }

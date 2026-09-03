@@ -91,47 +91,47 @@ def run_tests():
     else:
         record_result("2. Admin Creates Student with Enrollment Number", False, f"Status: {status}, Res: {create_stu_res}")
 
-    # 3. Direct Student Login using Enrollment Number + Default Password ("student123")
+    # 3. Direct Student Login using Enrollment Number + Generated Temporary Password
+    stu_temp_pass = create_stu_res.get("credentials", {}).get("temporaryPassword") or "student123"
     stu_client = make_client()
     status, stu_login_res = req(stu_client, "POST", "/api/login", {
         "username": test_enrollment_no,
-        "password": "student123"
+        "password": stu_temp_pass
     })
     
     if status == 200 and stu_login_res.get("success"):
         user_info = stu_login_res.get("user", {})
         if user_info.get("role") == "Student" and (user_info.get("student_id") == test_enrollment_no or user_info.get("username") == test_enrollment_no):
-            record_result("3. Student Direct Login via Enrollment Number + 'student123'", True)
+            record_result("3. Student Direct Login via Enrollment Number", True)
         else:
-            record_result("3. Student Direct Login via Enrollment Number + 'student123'", False, f"User info: {user_info}")
+            record_result("3. Student Direct Login via Enrollment Number", False, f"User info: {user_info}")
     else:
-        record_result("3. Student Direct Login via Enrollment Number + 'student123'", False, f"Status: {status}, Res: {stu_login_res}")
+        record_result("3. Student Direct Login via Enrollment Number", False, f"Status: {status}, Res: {stu_login_res}")
 
     # 4. Student Isolation: Student logged in sees only their own data
-    status, stu_profile_res = req(stu_client, "GET", f"/api/students?id={test_enrollment_no}")
-    if status == 200 and stu_profile_res.get("success"):
+    status, own_profile_res = req(stu_client, "GET", f"/api/students?id={test_enrollment_no}")
+    if status == 200 and own_profile_res.get("success"):
         record_result("4. Student Data Isolation - Access Own Profile", True)
     else:
-        record_result("4. Student Data Isolation - Access Own Profile", False, f"Status: {status}, Res: {stu_profile_res}")
+        record_result("4. Student Data Isolation - Access Own Profile", False, f"Status: {status}, Res: {own_profile_res}")
 
-    # 5. Duplicate Enrollment Number Rejection
-    status, dup_res = req(admin_client, "POST", "/api/students", student_payload)
-    if status == 400 and not dup_res.get("success"):
+    # 5. Duplicate Enrollment Number Check
+    status, dup_stu_res = req(admin_client, "POST", "/api/students", student_payload)
+    if status == 400 and not dup_stu_res.get("success"):
         record_result("5. Duplicate Enrollment Number Rejection Check", True)
     else:
-        record_result("5. Duplicate Enrollment Number Rejection Check", False, f"Status: {status}, Res: {dup_res}")
+        record_result("5. Duplicate Enrollment Number Rejection Check", False, f"Status: {status}, Res: {dup_stu_res}")
 
-    # 6. Admin creates Faculty -> Verify automatic active login account creation
+    # 6. Admin creates new Faculty with Faculty ID
     test_fac_id = f"FAC_{rand_suffix}"
-    test_fac_email = f"fac_{rand_suffix.lower()}@college.edu"
     faculty_payload = {
         "id": test_fac_id,
         "name": f"Automated Faculty {rand_suffix}",
         "department": "Computer Engineering",
         "designation": "Assistant Professor",
-        "email": test_fac_email,
+        "email": f"faculty_{rand_suffix.lower()}@college.edu",
         "mobile": "9876543211",
-        "experience": "2 Years",
+        "experience": "5 Years",
         "status": "Active"
     }
 
@@ -141,21 +141,22 @@ def run_tests():
     else:
         record_result("6. Admin Creates Faculty with Faculty ID", False, f"Status: {status}, Res: {create_fac_res}")
 
-    # 7. Direct Faculty Login using Faculty ID + Default Password ("faculty123")
+    # 7. Direct Faculty Login using Faculty ID + Generated Temporary Password
+    fac_temp_pass = create_fac_res.get("credentials", {}).get("temporaryPassword") or "faculty123"
     fac_client = make_client()
     status, fac_login_res = req(fac_client, "POST", "/api/login", {
         "username": test_fac_id,
-        "password": "faculty123"
+        "password": fac_temp_pass
     })
     
     if status == 200 and fac_login_res.get("success"):
         fac_user_info = fac_login_res.get("user", {})
         if fac_user_info.get("role") == "Faculty" and (fac_user_info.get("faculty_id") == test_fac_id or fac_user_info.get("username") == test_fac_id):
-            record_result("7. Faculty Direct Login via Faculty ID + 'faculty123'", True)
+            record_result("7. Faculty Direct Login via Faculty ID", True)
         else:
-            record_result("7. Faculty Direct Login via Faculty ID + 'faculty123'", False, f"User info: {fac_user_info}")
+            record_result("7. Faculty Direct Login via Faculty ID", False, f"User info: {fac_user_info}")
     else:
-        record_result("7. Faculty Direct Login via Faculty ID + 'faculty123'", False, f"Status: {status}, Res: {fac_login_res}")
+        record_result("7. Faculty Direct Login via Faculty ID", False, f"Status: {status}, Res: {fac_login_res}")
 
     # 8. Duplicate Self-Registration Rejection for existing Enrollment Number / Faculty ID
     status, dup_reg_res = req(make_client(), "POST", "/api/register", {

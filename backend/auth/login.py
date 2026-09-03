@@ -64,6 +64,7 @@ def handle_login(handler_instance, query_params, body):
             }, 403)
             
         session_token = str(uuid.uuid4())
+        must_change_pwd = bool(user.get("must_change_password"))
         user_data = {
             "id": user["id"],
             "username": user["username"],
@@ -73,7 +74,8 @@ def handle_login(handler_instance, query_params, body):
             "student_id": user.get("student_id", "") or (user["username"] if user["role"] == "Student" else ""),
             "faculty_id": user.get("faculty_id", "") or (user["username"] if user["role"] in ["Faculty", "HOD"] else ""),
             "email": user["email"],
-            "status": user.get("status", "Active")
+            "status": user.get("status", "Active"),
+            "must_change_password": must_change_pwd
         }
         
         SESSIONS[session_token] = user_data
@@ -86,6 +88,7 @@ def handle_login(handler_instance, query_params, body):
             "success": True, 
             "token": session_token,
             "user": user_data,
+            "must_change_password": must_change_pwd,
             "message": "Login successful"
         }, headers=headers)
         
@@ -109,7 +112,7 @@ def handle_logout(handler_instance, query_params, body):
 def handle_me(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
     if user:
-        handler_instance._send_json({"success": True, "user": user})
+        handler_instance._send_json({"success": True, "user": user, "must_change_password": bool(user.get("must_change_password"))})
     else:
         handler_instance._send_json({"success": False, "message": "Not authenticated"}, 401)
 

@@ -678,6 +678,72 @@ def handle_post_user_status(handler_instance, query_params, body):
 register_route('POST', '/api/admin/users/status', handle_post_user_status)
 register_route('POST', '/api/users/status', handle_post_user_status)
 
+# ----------------------------------------------------
+# Admin Password Reset for Any User
+# ----------------------------------------------------
+def handle_admin_reset_password(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not is_admin(user):
+        return handler_instance._send_json({"success": False, "message": "Only Administrators can reset user passwords"}, 403)
+
+    user_id = body.get("user_id") or body.get("id") or body.get("username")
+    if not user_id:
+        return handler_instance._send_json({"success": False, "message": "User ID or Username is required"}, 400)
+
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        target_user = None
+        if str(user_id).isdigit():
+            cursor.execute("SELECT * FROM users WHERE id = %s", (int(user_id),))
+            target_user = cursor.fetchone()
+        if not target_user:
+            cursor.execute("SELECT * FROM users WHERE username = %s OR student_id = %s OR faculty_id = %s OR email = %s", (user_id, user_id, user_id, user_id))
+            target_user = cursor.fetchone()
+
+        if not target_user:
+            return handler_instance._send_json({"success": False, "message": "User account not found"}, 404)
+
+        from auth.utils import generate_temp_password, hash_password
+        temp_pass = generate_temp_password()
+        hashed = hash_password(temp_pass)
+
+        cursor.execute(
+            "UPDATE users SET password = %s, must_change_password = 1, temp_password_created_at = NOW() WHERE id = %s",
+            (hashed, target_user["id"])
+        )
+        conn.commit()
+
+        # Build credentials payload
+        cred = {
+            "name": target_user.get("name"),
+            "role": target_user.get("role"),
+            "username": target_user.get("username"),
+            "enrollmentNumber": target_user.get("student_id") if target_user.get("role") == "Student" else "",
+            "facultyId": target_user.get("faculty_id") if target_user.get("role") in ["Faculty", "HOD"] else "",
+            "department": target_user.get("department") or "",
+            "temporaryPassword": temp_pass,
+            "loginUrl": "/login.html"
+        }
+
+        return handler_instance._send_json({
+            "success": True,
+            "message": f"Temporary password generated for {target_user['name']}.",
+            "credentials": cred
+        })
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": str(e)}, 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('POST', '/api/admin/reset-password', handle_admin_reset_password)
+register_route('POST', '/api/admin/users/reset-password', handle_admin_reset_password)
+
 
 
 # ----------------------------------------------------

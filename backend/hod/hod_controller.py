@@ -7,7 +7,7 @@ import os
 from config.database import get_db_connection
 from router import register_route
 from auth.permissions import get_current_user, is_admin
-from auth.utils import hash_password
+from auth.utils import hash_password, generate_temp_password
 
 def handle_get_hod_dashboard_stats(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
@@ -195,17 +195,34 @@ def handle_post_hods(handler_instance, query_params, body):
                 (name, email if email else f"hod_{dept[:2].lower()}@college.edu", dept, f_id, contact if contact else "9876543210", status_val, existing_user["id"])
             )
             success_msg = f"HOD record updated successfully for {dept}!"
+            cred_payload = None
         else:
-            plain_pass = body.get("password", "hod123")
+            plain_pass = body.get("password") or generate_temp_password()
             hashed = hash_password(plain_pass)
             cursor.execute(
-                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (username, hashed, "HOD", name, email if email else f"hod_{dept[:2].lower()}@college.edu", dept, f_id, contact if contact else "9876543210", time.strftime('%Y-%m-%d %H:%M:%S'), status_val)
+                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
+                (username, hashed, "HOD", name, email if email else f"hod_{dept[:2].lower()}@college.edu", dept, f_id, contact if contact else "9876543210", time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
             )
-            success_msg = f"HOD created successfully.\n\nHOD Username: {username}\nTemporary Password: hod123\n\nThe HOD can now login directly using these credentials."
+            success_msg = f"HOD created successfully.\n\nHOD Username: {username}\nTemporary Password: {plain_pass}\n\nThe HOD can now login directly using these credentials."
+            cred_payload = {
+                "name": name,
+                "role": "HOD",
+                "department": dept,
+                "username": username,
+                "facultyId": f_id,
+                "temporaryPassword": plain_pass,
+                "loginUrl": "/login.html"
+            }
 
         conn.commit()
-        return handler_instance._send_json({"success": True, "message": success_msg, "id": f_id, "username": username, "department": dept})
+        return handler_instance._send_json({
+            "success": True, 
+            "message": success_msg, 
+            "id": f_id, 
+            "username": username, 
+            "department": dept,
+            "credentials": cred_payload
+        })
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": str(e)}, 500)

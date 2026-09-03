@@ -49,6 +49,7 @@ def handle_request(method, handler_instance):
 import auth.login
 import auth.register
 import auth.forgot_password
+import auth.password_controller
 import auth.profile
 
 # Modules

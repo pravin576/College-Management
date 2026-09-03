@@ -71,6 +71,14 @@ def init_db():
                 cursor.execute("SHOW COLUMNS FROM users LIKE 'status'")
                 if not cursor.fetchone():
                     cursor.execute("ALTER TABLE users ADD COLUMN status VARCHAR(50) DEFAULT 'Active'")
+
+                cursor.execute("SHOW COLUMNS FROM users LIKE 'must_change_password'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE users ADD COLUMN must_change_password INT DEFAULT 0")
+
+                cursor.execute("SHOW COLUMNS FROM users LIKE 'temp_password_created_at'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE users ADD COLUMN temp_password_created_at DATETIME NULL")
                 
                 cursor.execute("SHOW COLUMNS FROM faculty LIKE 'status'")
                 if not cursor.fetchone():

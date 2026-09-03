@@ -7,7 +7,7 @@ import os
 from config.database import get_db_connection
 from router import register_route
 from auth.permissions import get_current_user, is_admin, is_hod
-from auth.utils import hash_password
+from auth.utils import hash_password, generate_temp_password
 
 def handle_get_faculty(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
@@ -107,18 +107,34 @@ def handle_post_faculty(handler_instance, query_params, body):
                 (name, dept, mobile if mobile else "9876543210", email if email else f"{f_id.lower()}@college.edu", status_val, existing_user["id"])
             )
             success_msg = "Faculty record updated successfully!"
+            cred_payload = None
         else:
             username = body.get("username") or f_id
-            plain_pass = body.get("password") or "faculty123"
+            plain_pass = body.get("password") or generate_temp_password()
             hashed = hash_password(plain_pass)
             cursor.execute(
-                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (username, hashed, "Faculty", name, email if email else f"{f_id.lower()}@college.edu", dept, f_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), status_val)
+                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
+                (username, hashed, "Faculty", name, email if email else f"{f_id.lower()}@college.edu", dept, f_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
             )
-            success_msg = f"Faculty created successfully.\n\nFaculty Username/ID: {f_id}\nLogin Password: faculty123\n\nThe faculty member can now log in directly."
+            success_msg = f"Faculty created successfully.\n\nFaculty Username/ID: {f_id}\nTemporary Password: {plain_pass}\n\nThe faculty member can now log in directly."
+            cred_payload = {
+                "name": name,
+                "facultyId": f_id,
+                "role": "Faculty",
+                "department": dept,
+                "username": username,
+                "temporaryPassword": plain_pass,
+                "loginUrl": "/login.html"
+            }
 
         conn.commit()
-        return handler_instance._send_json({"success": True, "message": success_msg, "id": f_id, "facultyId": f_id})
+        return handler_instance._send_json({
+            "success": True, 
+            "message": success_msg, 
+            "id": f_id, 
+            "facultyId": f_id,
+            "credentials": cred_payload
+        })
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": str(e)}, 500)

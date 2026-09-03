@@ -1,5 +1,25 @@
 import hashlib
 import time
+import secrets
+import string
+
+def generate_temp_password(length=9) -> str:
+    """Generate a secure, random temporary password (e.g. Tmp8#K2x9)"""
+    digits = string.digits
+    uppercase = string.ascii_uppercase
+    lowercase = string.ascii_lowercase
+    symbols = "!@#$%^&*"
+    pwd = [
+        secrets.choice(uppercase),
+        secrets.choice(lowercase),
+        secrets.choice(digits),
+        secrets.choice(symbols)
+    ]
+    all_chars = uppercase + lowercase + digits + symbols
+    for _ in range(max(length - 4, 4)):
+        pwd.append(secrets.choice(all_chars))
+    secrets.SystemRandom().shuffle(pwd)
+    return "".join(pwd)
 
 def hash_password(password: str) -> str:
     salt = hashlib.sha256(str(time.time()).encode('utf-8')).hexdigest()[:16]

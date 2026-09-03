@@ -7,7 +7,7 @@ import os
 from config.database import get_db_connection
 from router import register_route
 from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student, is_student_assigned_to_faculty
-from auth.utils import hash_password
+from auth.utils import hash_password, generate_temp_password
 from core.excel_utils import create_student_template_xlsx, parse_xlsx_bytes
 
 # ----------------------------------------------------
@@ -338,18 +338,36 @@ def handle_post_students(handler_instance, query_params, body):
                 "UPDATE users SET name = %s, department = %s, email = %s, mobile = %s WHERE id = %s",
                 (name, dept, email if email else f"{s_id.lower()}@college.edu", mobile if mobile else "9876543210", existing_user["id"])
             )
+            success_msg = "Student record updated successfully!"
+            cred_payload = None
         else:
             username = s_id  # Enrollment Number is the login identifier
-            plain_pass = body.get("password") or "student123"
+            plain_pass = body.get("password") or generate_temp_password()
             hashed = hash_password(plain_pass)
             cursor.execute(
-                "INSERT INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')",
-                (username, hashed, "Student", name, email if email else f"{s_id.lower()}@college.edu", dept, s_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'))
+                "INSERT INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)",
+                (username, hashed, "Student", name, email if email else f"{s_id.lower()}@college.edu", dept, s_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), time.strftime('%Y-%m-%d %H:%M:%S'))
             )
+            success_msg = f"Student created successfully.\n\nEnrollment Number: {s_id}\nTemporary Password: {plain_pass}\n\nThe student can now log in directly using the Enrollment Number and temporary password."
+            cred_payload = {
+                "name": name,
+                "enrollmentNumber": s_id,
+                "rollNumber": roll_number,
+                "role": "Student",
+                "department": dept,
+                "username": s_id,
+                "temporaryPassword": plain_pass,
+                "loginUrl": "/login.html"
+            }
 
         conn.commit()
-        success_msg = f"Student created successfully.\n\nEnrollment Number: {s_id}\nLogin Password: student123\n\nThe student can now log in directly using the Enrollment Number and password." if not is_edit else "Student record updated successfully!"
-        return handler_instance._send_json({"success": True, "message": success_msg, "id": s_id, "enrollmentNumber": s_id})
+        return handler_instance._send_json({
+            "success": True, 
+            "message": success_msg, 
+            "id": s_id, 
+            "enrollmentNumber": s_id,
+            "credentials": cred_payload
+        })
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": f"Database error: {str(e)}"}, 500)
@@ -416,10 +434,11 @@ def handle_post_students_bulk(handler_instance, query_params, body):
             )
 
             username = s_id
-            hashed = hash_password("student123")
+            temp_pass = generate_temp_password()
+            hashed = hash_password(temp_pass)
             cursor.execute(
-                "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')",
-                (username, hashed, "Student", name, email, dept, s_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'))
+                "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)",
+                (username, hashed, "Student", name, email, dept, s_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), time.strftime('%Y-%m-%d %H:%M:%S'))
             )
 
             inserted_cnt += 1
@@ -655,10 +674,11 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
             )
 
             username = stu_id
-            hashed = hash_password("student123")
+            temp_pass = generate_temp_password()
+            hashed = hash_password(temp_pass)
             cursor.execute(
-                "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')",
-                (username, hashed, "Student", name, email, dept, stu_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'))
+                "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)",
+                (username, hashed, "Student", name, email, dept, stu_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), time.strftime('%Y-%m-%d %H:%M:%S'))
             )
 
             added_cnt += 1

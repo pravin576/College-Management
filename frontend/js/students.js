@@ -165,10 +165,14 @@ async function saveStudentForm(e) {
   });
 
   if (res.success) {
-    showToast(res.message || "Student saved successfully!", "success");
     closeModal("addStudentModal");
     isEditingStudent = false;
     loadStudentsData();
+    if (res.credentials) {
+      showCredentialModal(res.credentials);
+    } else {
+      showToast(res.message || "Student saved successfully!", "success");
+    }
   } else {
     showToast(res.message || "Failed to save student record", "danger");
   }

@@ -19,8 +19,12 @@ def handle_login(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Find user by username OR email
-        cursor.execute("SELECT * FROM users WHERE username = %s OR email = %s", (username_or_email, username_or_email))
+        # Find user by username, email, enrollment number (student_id), or faculty_id
+        cursor.execute(
+            """SELECT * FROM users 
+               WHERE username = %s OR email = %s OR student_id = %s OR faculty_id = %s""",
+            (username_or_email, username_or_email, username_or_email, username_or_email)
+        )
         user = cursor.fetchone()
         
         if not user:
@@ -66,8 +70,8 @@ def handle_login(handler_instance, query_params, body):
             "name": user["name"],
             "role": user["role"],
             "department": user.get("department", ""),
-            "student_id": user.get("student_id", ""),
-            "faculty_id": user.get("faculty_id", ""),
+            "student_id": user.get("student_id", "") or (user["username"] if user["role"] == "Student" else ""),
+            "faculty_id": user.get("faculty_id", "") or (user["username"] if user["role"] in ["Faculty", "HOD"] else ""),
             "email": user["email"],
             "status": user.get("status", "Active")
         }

@@ -99,24 +99,26 @@ def handle_post_faculty(handler_instance, query_params, body):
                 status_val
             )
         )
-        cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR (email = %s AND email != '')", (f_id, email))
+        cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR username = %s OR (email = %s AND email != '')", (f_id, f_id, email))
         existing_user = cursor.fetchone()
         if existing_user:
             cursor.execute(
-                "UPDATE users SET name = %s, department = %s, mobile = %s, status = %s WHERE id = %s",
-                (name, dept, mobile if mobile else "9876543210", status_val, existing_user["id"])
+                "UPDATE users SET name = %s, department = %s, mobile = %s, email = %s, status = %s WHERE id = %s",
+                (name, dept, mobile if mobile else "9876543210", email if email else f"{f_id.lower()}@college.edu", status_val, existing_user["id"])
             )
+            success_msg = "Faculty record updated successfully!"
         else:
-            username = body.get("username") or (email.split("@")[0] if email else f"faculty_{f_id.lower()}")
-            plain_pass = body.get("password", "faculty123")
+            username = body.get("username") or f_id
+            plain_pass = body.get("password") or "faculty123"
             hashed = hash_password(plain_pass)
             cursor.execute(
                 "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (username, hashed, "Faculty", name, email if email else f"{f_id.lower()}@college.edu", dept, f_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), status_val)
             )
+            success_msg = f"Faculty created successfully.\n\nFaculty Username/ID: {f_id}\nLogin Password: faculty123\n\nThe faculty member can now log in directly."
 
         conn.commit()
-        return handler_instance._send_json({"success": True, "message": "Faculty record saved successfully!", "id": f_id})
+        return handler_instance._send_json({"success": True, "message": success_msg, "id": f_id, "facultyId": f_id})
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": str(e)}, 500)

@@ -76,7 +76,7 @@
           <div class="card-body">
             <div class="row g-2">
               <div class="col-md-3">
-                <input type="text" id="searchAttendanceInput" class="form-control form-control-sm" placeholder="Search Student ID / Name / Subject..." onkeyup="filterAttendanceTable()">
+                <input type="text" id="searchAttendanceInput" class="form-control form-control-sm" placeholder="Search Enrollment No / Name / Subject..." onkeyup="filterAttendanceTable()">
               </div>
               <div class="col-md-2">
                 <select id="filterAttendanceDept" class="form-select form-select-sm" onchange="filterAttendanceTable()">
@@ -138,7 +138,7 @@
                 <thead class="bg-light">
                   <tr>
                     <th>Date</th>
-                    <th>Student ID</th>
+                    <th>Enrollment Number</th>
                     <th>Student Name</th>
                     <th>Department</th>
                     <th>Year / Sem / Div</th>
@@ -169,8 +169,8 @@
         <form id="attendanceModalForm" onsubmit="saveAttendanceForm(event)">
           <div class="modal-body">
             <div class="mb-3">
-              <label class="form-label">Student ID *</label>
-              <input type="text" id="attStudentId" class="form-control" required placeholder="e.g. STU101">
+              <label class="form-label">Enrollment Number *</label>
+              <input type="text" id="attStudentId" class="form-control" required placeholder="e.g. EN20260001">
             </div>
             <div class="mb-3">
               <label class="form-label">Student Name *</label>
@@ -224,7 +224,7 @@
             <div class="mb-3">
               <label class="form-label fw-semibold">Select Excel File (.xlsx) *</label>
               <input type="file" id="attendanceExcelFileInput" class="form-control" accept=".xlsx" required>
-              <div class="form-text">Headers: <code>Student ID, Student Name, Department, Year, Semester, Division, Subject, Subject Code, Date, Attendance Status</code></div>
+              <div class="form-text">Headers: <code>Enrollment Number, Student Name, Department, Year, Semester, Division, Subject, Subject Code, Date, Attendance Status</code></div>
             </div>
 
             <!-- Import Execution Summary Container -->
@@ -274,7 +274,7 @@
                     <thead class="bg-light">
                       <tr>
                         <th>Excel Row #</th>
-                        <th>Student ID</th>
+                        <th>Enrollment Number</th>
                         <th>Name</th>
                         <th>Failure Reason</th>
                       </tr>

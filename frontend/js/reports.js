@@ -51,7 +51,7 @@ function renderReportTable(type, data, summary) {
 
     head.innerHTML = `
       <tr>
-        <th>Student ID</th>
+        <th>Enrollment Number</th>
         <th>Roll No</th>
         <th>Student Name</th>
         <th>Department</th>
@@ -119,7 +119,7 @@ function renderReportTable(type, data, summary) {
     head.innerHTML = `
       <tr>
         <th>ID</th>
-        <th>Student ID</th>
+        <th>Enrollment Number</th>
         <th>Student Name</th>
         <th>Subject</th>
         <th>Date</th>
@@ -153,7 +153,7 @@ function renderReportTable(type, data, summary) {
     head.innerHTML = `
       <tr>
         <th>ID</th>
-        <th>Student ID</th>
+        <th>Enrollment Number</th>
         <th>Subject</th>
         <th>Semester</th>
         <th>Internal</th>
@@ -191,7 +191,7 @@ function renderReportTable(type, data, summary) {
     head.innerHTML = `
       <tr>
         <th>Receipt No</th>
-        <th>Student ID</th>
+        <th>Enrollment Number</th>
         <th>Student Name</th>
         <th>Department</th>
         <th>Total Fees</th>

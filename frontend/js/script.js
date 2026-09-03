@@ -36,7 +36,7 @@ function showToast(message, type = "success") {
     <div id="${toastId}" class="toast ${bgClass}">
       <div class="d-flex align-items-center gap-2">
         <i class="bi ${icon} fs-5"></i>
-        <span>${message}</span>
+        <span style="white-space: pre-line;">${message}</span>
       </div>
       <button type="button" class="btn-close text-white" onclick="document.getElementById('${toastId}').remove()">✕</button>
     </div>

@@ -102,7 +102,7 @@ function viewStudentProfile(id) {
       <div class="col-md-8">
         <h6 class="fw-bold text-primary border-bottom pb-2 mb-3">Academic Information</h6>
         <div class="row g-2 small">
-          <div class="col-6"><strong>Student ID:</strong> ${s.id}</div>
+          <div class="col-6"><strong>Enrollment Number:</strong> ${s.id}</div>
           <div class="col-6"><strong>Roll Number:</strong> ${s.roll_number || 'N/A'}</div>
           <div class="col-6"><strong>Email ID:</strong> ${s.email}</div>
           <div class="col-6"><strong>Contact Phone:</strong> ${s.mobile}</div>
@@ -412,7 +412,7 @@ function downloadStudentErrorReport() {
     showToast("No errors to export!", "info");
     return;
   }
-  let csvContent = "data:text/csv;charset=utf-8,Excel Row Number,Student ID,Student Name,Failure Reason\n";
+  let csvContent = "data:text/csv;charset=utf-8,Excel Row Number,Enrollment Number,Student Name,Failure Reason\n";
   currentStudentExcelErrors.forEach(err => {
     csvContent += `"${err.row}","${err.student_id}","${err.name}","${err.reason}"\n`;
   });

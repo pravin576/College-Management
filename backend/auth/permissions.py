@@ -29,22 +29,22 @@ def get_current_user(handler_instance):
 def is_admin(user):
     if not user:
         return False
-    return user.get("role") in ["Administrator", "Admin"]
+    return str(user.get("role", "")).lower() in ["administrator", "admin"]
 
 def is_hod(user):
     if not user:
         return False
-    return user.get("role") == "HOD"
+    return str(user.get("role", "")).lower() == "hod"
 
 def is_faculty(user):
     if not user:
         return False
-    return user.get("role") == "Faculty"
+    return str(user.get("role", "")).lower() == "faculty"
 
 def is_student(user):
     if not user:
         return False
-    return user.get("role") == "Student"
+    return str(user.get("role", "")).lower() == "student"
 
 def require_role(allowed_roles):
     """

@@ -220,7 +220,7 @@ def handle_get_reports_export(handler_instance, query_params, body):
                     p.append(dept_f)
                 cursor.execute(sql, tuple(p))
             rows = [dict(r) for r in cursor.fetchall()]
-            lines.append("Student ID,Roll Number,Name,Department,Year,Semester,Division,Email,Mobile,Status\n")
+            lines.append("Enrollment Number,Roll Number,Name,Department,Year,Semester,Division,Email,Mobile,Status\n")
             for r in rows:
                 lines.append(f'"{r["id"]}","{r["roll_number"]}","{r["name"]}","{r["department"]}","{r.get("year","")}","{r["semester"]}","{r["division"]}","{r["email"]}","{r["mobile"]}","{r.get("status","")}"\n')
 
@@ -239,7 +239,7 @@ def handle_get_reports_export(handler_instance, query_params, body):
                     p.append(dept_f)
                 cursor.execute(sql, tuple(p))
             rows = [dict(r) for r in cursor.fetchall()]
-            lines.append("Student ID,Student Name,Department,Total Fees,Paid Fees,Pending Fees,Status,Payment Date\n")
+            lines.append("Enrollment Number,Student Name,Department,Total Fees,Paid Fees,Pending Fees,Status,Payment Date\n")
             for r in rows:
                 lines.append(f'"{r["student_id"]}","{r["student_name"]}","{r["department"]}","{r["total_fees"]}","{r["paid_fees"]}","{r["pending_fees"]}","{r["payment_status"]}","{r.get("payment_date","")}"\n')
         else:

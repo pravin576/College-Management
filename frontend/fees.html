@@ -104,7 +104,7 @@
           <div class="card-body">
             <div class="row g-3">
               <div class="col-md-6">
-                <input type="text" id="searchFeesInput" class="form-control" placeholder="Search fee records by Student ID or Name..." onkeyup="filterFeesTable()">
+                <input type="text" id="searchFeesInput" class="form-control" placeholder="Search fee records by Enrollment Number or Name..." onkeyup="filterFeesTable()">
               </div>
               <div class="col-md-6">
                 <select id="filterFeeStatus" class="form-select" onchange="filterFeesTable()">
@@ -125,7 +125,7 @@
               <table class="table table-hover mb-0">
                 <thead>
                   <tr>
-                    <th>Student ID</th>
+                    <th>Enrollment Number</th>
                     <th>Student Name</th>
                     <th>Department</th>
                     <th>Total Fees</th>
@@ -191,8 +191,8 @@
           <div class="modal-body">
             <input type="hidden" id="feeRecordDbId">
             <div class="mb-3">
-              <label class="form-label">Student ID *</label>
-              <input type="text" id="feeStudentId" class="form-control" required placeholder="e.g. STU101">
+              <label class="form-label">Enrollment Number *</label>
+              <input type="text" id="feeStudentId" class="form-control" required placeholder="e.g. EN20260001">
             </div>
             <div class="mb-3">
               <label class="form-label">Student Name *</label>
@@ -201,11 +201,12 @@
             <div class="mb-3">
               <label class="form-label">Department *</label>
               <select id="feeDepartment" class="form-select" required>
-                <option value="Computer Science">Computer Science</option>
-                <option value="AI & Data Science">AI & Data Science</option>
+                <option value="Computer Engineering">Computer Engineering</option>
+                <option value="Information Technology">Information Technology</option>
                 <option value="Mechanical Engineering">Mechanical Engineering</option>
                 <option value="Civil Engineering">Civil Engineering</option>
                 <option value="Electrical Engineering">Electrical Engineering</option>
+                <option value="Electronics & Telecommunication">Electronics & Telecommunication</option>
               </select>
             </div>
             <div class="row g-2 mb-3">
@@ -224,6 +225,43 @@
             <button type="submit" class="btn btn-primary fw-bold">Save Fee Record</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fee Receipt Modal -->
+  <div class="modal" id="feeReceiptModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title"><i class="bi bi-receipt me-2"></i> Official Fee Receipt</h5>
+          <button type="button" class="btn-close text-white" onclick="closeModal('feeReceiptModal')">✕</button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="text-center border-bottom pb-3 mb-3">
+            <h5 class="fw-bold text-dark mb-1">Government Polytechnic, Awasari (Kh.)</h5>
+            <div class="text-muted small">Fee Payment Acknowledgement Receipt</div>
+            <div class="badge bg-primary fs-6 mt-2" id="recNumber">REC-2026-XXXX</div>
+          </div>
+          <div class="row g-2 small mb-3">
+            <div class="col-6"><strong>Enrollment Number:</strong> <span id="recStudentId">-</span></div>
+            <div class="col-6"><strong>Payment Date:</strong> <span id="recDate">-</span></div>
+            <div class="col-6"><strong>Student Name:</strong> <span id="recStudentName">-</span></div>
+            <div class="col-6"><strong>Department:</strong> <span id="recDept">-</span></div>
+          </div>
+          <table class="table table-bordered table-sm small mb-3">
+            <tbody>
+              <tr><td>Total Academic Fees</td><td class="text-end fw-bold" id="recTotalFees">₹0</td></tr>
+              <tr class="table-success"><td>Amount Paid</td><td class="text-end fw-bold text-success" id="recPaidFees">₹0</td></tr>
+              <tr><td>Remaining Balance</td><td class="text-end fw-bold text-danger" id="recPendingFees">₹0</td></tr>
+              <tr><td>Payment Status</td><td class="text-end"><span class="badge bg-success" id="recStatus">PAID</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('feeReceiptModal')">Close</button>
+          <button type="button" class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer me-1"></i> Print Receipt</button>
+        </div>
       </div>
     </div>
   </div>

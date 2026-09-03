@@ -17,6 +17,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     const globalDeptSelect = document.getElementById("hodGlobalDeptFilter");
     if (globalDeptSelect) {
       globalDeptSelect.value = currentDept;
+      if (user.role === "HOD") {
+        globalDeptSelect.disabled = true;
+        globalDeptSelect.title = `Department locked to ${currentDept}`;
+      }
+    }
+
+    if (user.role !== "Administrator") {
+      document.querySelectorAll(".action-add-hod").forEach(btn => btn.classList.add("d-none"));
     }
 
     await loadHodDashboardStats(currentDept);
@@ -27,7 +35,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function onHodGlobalDeptChange(dept) {
-  currentDept = dept;
+  const user = getSession();
+  if (user && user.role === "HOD") {
+    currentDept = user.department || currentDept;
+  } else {
+    currentDept = dept;
+  }
   currentFacultyId = "";
   await loadHodDashboardStats(currentDept);
   await loadHodStudents(currentDept);

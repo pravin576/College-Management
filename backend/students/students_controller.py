@@ -279,7 +279,7 @@ def handle_post_students(handler_instance, query_params, body):
     role = user.get('role')
     user_dept = user.get('department')
 
-    s_id = (body.get("id") or body.get("studentId") or "").strip()
+    s_id = (body.get("id") or body.get("studentId") or body.get("enrollmentNumber") or body.get("enrollment_number") or "").strip()
     roll_number = (body.get("rollNumber") or body.get("roll_number") or "").strip()
     dept = user_dept if is_hod(user) else (body.get("department") or "Computer Engineering").strip()
     mobile = (body.get("mobile", "") or body.get("phone", "")).strip()
@@ -288,7 +288,7 @@ def handle_post_students(handler_instance, query_params, body):
     is_edit = body.get("is_edit", False)
 
     if not s_id or not roll_number or not name:
-        return handler_instance._send_json({"success": False, "message": "Student ID, Roll Number, and Name are required!"}, 400)
+        return handler_instance._send_json({"success": False, "message": "Enrollment Number, Roll Number, and Name are required!"}, 400)
 
     conn = get_db_connection()
     if not conn:
@@ -299,7 +299,11 @@ def handle_post_students(handler_instance, query_params, body):
         if not is_edit:
             cursor.execute("SELECT id FROM students WHERE id = %s", (s_id,))
             if cursor.fetchone():
-                return handler_instance._send_json({"success": False, "message": f"Duplicate Error: Student ID '{s_id}' already exists!"}, 400)
+                return handler_instance._send_json({"success": False, "message": f"This Enrollment Number '{s_id}' is already registered. Please use a unique Enrollment Number."}, 400)
+
+            cursor.execute("SELECT id FROM users WHERE username = %s OR student_id = %s", (s_id, s_id))
+            if cursor.fetchone():
+                return handler_instance._send_json({"success": False, "message": f"A login account already exists for Enrollment Number '{s_id}'."}, 400)
 
             cursor.execute("SELECT id FROM students WHERE roll_number = %s AND department = %s", (roll_number, dept))
             if cursor.fetchone():
@@ -327,10 +331,16 @@ def handle_post_students(handler_instance, query_params, body):
             )
         )
 
-        cursor.execute("SELECT id FROM users WHERE student_id = %s OR email = %s", (s_id, email))
-        if not cursor.fetchone():
-            username = body.get("username") or (email.split("@")[0] if email else f"student_{s_id.lower()}")
-            plain_pass = body.get("password", "student123")
+        cursor.execute("SELECT id FROM users WHERE student_id = %s OR username = %s", (s_id, s_id))
+        existing_user = cursor.fetchone()
+        if existing_user:
+            cursor.execute(
+                "UPDATE users SET name = %s, department = %s, email = %s, mobile = %s WHERE id = %s",
+                (name, dept, email if email else f"{s_id.lower()}@college.edu", mobile if mobile else "9876543210", existing_user["id"])
+            )
+        else:
+            username = s_id  # Enrollment Number is the login identifier
+            plain_pass = body.get("password") or "student123"
             hashed = hash_password(plain_pass)
             cursor.execute(
                 "INSERT INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')",
@@ -338,7 +348,8 @@ def handle_post_students(handler_instance, query_params, body):
             )
 
         conn.commit()
-        return handler_instance._send_json({"success": True, "message": "Student record saved successfully!", "id": s_id})
+        success_msg = f"Student created successfully.\n\nEnrollment Number: {s_id}\nLogin Password: student123\n\nThe student can now log in directly using the Enrollment Number and password." if not is_edit else "Student record updated successfully!"
+        return handler_instance._send_json({"success": True, "message": success_msg, "id": s_id, "enrollmentNumber": s_id})
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": f"Database error: {str(e)}"}, 500)
@@ -376,7 +387,7 @@ def handle_post_students_bulk(handler_instance, query_params, body):
 
     try:
         for s in students_list:
-            s_id = (s.get("id") or s.get("studentId") or "").strip()
+            s_id = (s.get("id") or s.get("studentId") or s.get("enrollmentNumber") or "").strip()
             r_num = (s.get("roll_number") or s.get("rollNumber") or "").strip()
             name = (s.get("name") or "").strip()
             if not s_id or not r_num or not name:
@@ -404,7 +415,7 @@ def handle_post_students_bulk(handler_instance, query_params, body):
                 )
             )
 
-            username = s.get("username") or email.split("@")[0]
+            username = s_id
             hashed = hash_password("student123")
             cursor.execute(
                 "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')",
@@ -643,7 +654,7 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
                 (stu_id, roll_no, name, email, mobile, gender, dob, dept, year, sem, div, adm_year, address, status_val)
             )
 
-            username = email.split("@")[0]
+            username = stu_id
             hashed = hash_password("student123")
             cursor.execute(
                 "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')",

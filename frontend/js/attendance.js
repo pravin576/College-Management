@@ -208,7 +208,7 @@ function downloadAttendanceErrorReport() {
     showToast("No errors to export!", "info");
     return;
   }
-  let csvContent = "data:text/csv;charset=utf-8,Excel Row Number,Student ID,Student Name,Failure Reason\n";
+  let csvContent = "data:text/csv;charset=utf-8,Excel Row Number,Enrollment Number,Student Name,Failure Reason\n";
   currentAttendanceExcelErrors.forEach(err => {
     csvContent += `"${err.row}","${err.student_id}","${err.name}","${err.reason}"\n`;
   });

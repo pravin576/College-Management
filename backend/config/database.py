@@ -107,6 +107,40 @@ def init_db():
             except Exception as e:
                 print(f"Notice seeding departments: {e}")
 
+            # Synchronize / seed login accounts for any existing student records lacking user accounts
+            try:
+                from auth.utils import hash_password
+                stu_pass = hash_password("student123")
+                cursor.execute("""
+                    INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, status)
+                    SELECT s.id, %s, 'Student', s.name, s.email, s.department, s.id, s.mobile, 'Active'
+                    FROM students s
+                    LEFT JOIN users u ON (u.student_id = s.id OR u.username = s.id)
+                    WHERE u.id IS NULL
+                """, (stu_pass,))
+
+                # Synchronize / seed login accounts for any existing faculty records lacking user accounts
+                fac_pass = hash_password("faculty123")
+                cursor.execute("""
+                    INSERT IGNORE INTO users (username, password, role, name, email, department, faculty_id, mobile, status)
+                    SELECT f.id, %s, 'Faculty', f.name, f.email, f.department, f.id, f.mobile, 'Active'
+                    FROM faculty f
+                    LEFT JOIN users u ON (u.faculty_id = f.id OR u.username = f.id)
+                    WHERE u.id IS NULL
+                """, (fac_pass,))
+
+                # Synchronize / seed login accounts for any existing HOD records lacking user accounts
+                hod_pass = hash_password("hod123")
+                cursor.execute("""
+                    INSERT IGNORE INTO users (username, password, role, name, email, department, faculty_id, mobile, status)
+                    SELECT COALESCE(NULLIF(h.faculty_id, ''), CONCAT('hod_', LOWER(REPLACE(h.department, ' ', '_')))), %s, 'HOD', h.name, h.email, h.department, h.faculty_id, h.contact, 'Active'
+                    FROM hods h
+                    LEFT JOIN users u ON (u.faculty_id = h.faculty_id OR (u.department = h.department AND u.role = 'HOD') OR (u.email = h.email AND u.email != ''))
+                    WHERE u.id IS NULL
+                """, (hod_pass,))
+            except Exception as e:
+                print(f"Notice on auto user synchronization: {e}")
+
             # Seed default admin user if not exists
             try:
                 cursor.execute("SELECT id FROM users WHERE username = 'admin'")

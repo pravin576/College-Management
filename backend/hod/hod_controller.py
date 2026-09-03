@@ -144,10 +144,13 @@ def handle_post_hods(handler_instance, query_params, body):
         return handler_instance._send_json({"success": False, "message": "Forbidden: Only Administrator can manage HODs"}, 403)
 
     dept = (body.get("department") or "").strip()
-    f_id = (body.get("faculty_id") or f"HOD_{int(time.time()) % 100000}").strip()
+    f_id = (body.get("faculty_id") or body.get("facultyId") or f"HOD_{dept[:2].upper()}_{int(time.time()) % 10000}").strip()
     email = body.get("email", "").strip()
-    contact = (body.get("contact", "") or body.get("mobile", "")).strip()
+    contact = (body.get("contact", "") or body.get("mobile", "") or body.get("phone", "")).strip()
     name = body.get("name", "").strip()
+    username = (body.get("username") or f_id).strip()
+    status_val = body.get("status", "Active")
+    is_edit = body.get("is_edit", False)
 
     if not dept or not name:
         return handler_instance._send_json({"success": False, "message": "Department and Name are required!"}, 400)
@@ -157,32 +160,52 @@ def handle_post_hods(handler_instance, query_params, body):
         return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
     cursor = conn.cursor(dictionary=True)
 
-    status_val = body.get("status", "Active")
-
     try:
+        # Check if another HOD already exists for this department when adding new
+        cursor.execute("SELECT id, name, faculty_id, email FROM hods WHERE department = %s", (dept,))
+        existing_dept_hod = cursor.fetchone()
+
+        if not is_edit and existing_dept_hod and existing_dept_hod.get("faculty_id") != f_id:
+            return handler_instance._send_json({
+                "success": False, 
+                "message": f"An HOD ({existing_dept_hod['name']}) is already assigned to the {dept} department. Please update or remove the existing HOD first."
+            }, 400)
+
+        # Check duplicate username or faculty_id in users if new
+        if not is_edit:
+            cursor.execute("SELECT id FROM users WHERE username = %s OR (faculty_id = %s AND faculty_id != '')", (username, f_id))
+            if cursor.fetchone():
+                return handler_instance._send_json({
+                    "success": False,
+                    "message": f"A user account with Username / ID '{username}' is already registered."
+                }, 400)
+
+        # Atomic HOD insert/update
         cursor.execute(
             """REPLACE INTO hods (department, name, qualification, experience, email, contact, faculty_id, status)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-            (dept, name, body.get("qualification", "Ph.D."), body.get("experience", "10 Years"), email, contact, f_id, status_val)
+            (dept, name, body.get("qualification", "Ph.D."), body.get("experience", "10 Years"), email if email else f"hod_{dept[:2].lower()}@college.edu", contact if contact else "9876543210", f_id, status_val)
         )
-        cursor.execute("SELECT id FROM users WHERE email = %s OR faculty_id = %s OR (department = %s AND role = 'HOD')", (email, f_id, dept))
+
+        cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR username = %s OR (department = %s AND role = 'HOD') OR (email = %s AND email != '')", (f_id, username, dept, email))
         existing_user = cursor.fetchone()
         if existing_user:
             cursor.execute(
                 "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
-                (name, email, dept, f_id, contact, status_val, existing_user["id"])
+                (name, email if email else f"hod_{dept[:2].lower()}@college.edu", dept, f_id, contact if contact else "9876543210", status_val, existing_user["id"])
             )
+            success_msg = f"HOD record updated successfully for {dept}!"
         else:
-            username = body.get("username") or (email.split("@")[0] if email else f"hod_{dept.lower().replace(' ', '_')}")
             plain_pass = body.get("password", "hod123")
             hashed = hash_password(plain_pass)
             cursor.execute(
                 "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (username, hashed, "HOD", name, email, dept, f_id, contact, time.strftime('%Y-%m-%d %H:%M:%S'), status_val)
+                (username, hashed, "HOD", name, email if email else f"hod_{dept[:2].lower()}@college.edu", dept, f_id, contact if contact else "9876543210", time.strftime('%Y-%m-%d %H:%M:%S'), status_val)
             )
+            success_msg = f"HOD created successfully.\n\nHOD Username: {username}\nTemporary Password: hod123\n\nThe HOD can now login directly using these credentials."
 
         conn.commit()
-        return handler_instance._send_json({"success": True, "message": "HOD record saved successfully!"})
+        return handler_instance._send_json({"success": True, "message": success_msg, "id": f_id, "username": username, "department": dept})
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": str(e)}, 500)
@@ -200,7 +223,7 @@ def handle_delete_hods(handler_instance, query_params, body):
     if not is_admin(user):
         return handler_instance._send_json({"success": False, "message": "Forbidden: Only Administrator can delete HOD records"}, 403)
 
-    item_id = query_params.get("id", [None])[0] or body.get("id")
+    item_id = query_params.get("id", [None])[0] or (body.get("id") if isinstance(body, dict) else None) or query_params.get("department", [None])[0] or (body.get("department") if isinstance(body, dict) else None)
     if not item_id:
         return handler_instance._send_json({"success": False, "message": "HOD ID or Department required"}, 400)
 
@@ -210,19 +233,30 @@ def handle_delete_hods(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT * FROM hods WHERE id = %s OR department = %s", (item_id, item_id))
-        hod_record = cursor.fetchone()
-        if not hod_record:
-            return handler_instance._send_json({"success": False, "message": "HOD record not found"}, 404)
+        if str(item_id).isdigit():
+            cursor.execute("SELECT * FROM hods WHERE id = %s OR department = %s OR faculty_id = %s", (int(item_id), item_id, item_id))
+        else:
+            cursor.execute("SELECT * FROM hods WHERE department = %s OR faculty_id = %s", (item_id, item_id))
+            
+        hod_records = cursor.fetchall()
+        if not hod_records:
+            return handler_instance._send_json({"success": True, "message": "HOD record not found or already deleted"})
 
-        if hod_record.get("email"):
-            cursor.execute("DELETE FROM users WHERE email = %s AND role = 'HOD'", (hod_record["email"],))
-        if hod_record.get("faculty_id"):
-            cursor.execute("DELETE FROM users WHERE faculty_id = %s AND role = 'HOD'", (hod_record["faculty_id"],))
+        for hod_record in hod_records:
+            if hod_record.get("email"):
+                cursor.execute("DELETE FROM users WHERE email = %s AND role = 'HOD'", (hod_record["email"],))
+            if hod_record.get("faculty_id"):
+                cursor.execute("DELETE FROM users WHERE (faculty_id = %s OR username = %s) AND role = 'HOD'", (hod_record["faculty_id"], hod_record["faculty_id"]))
+            if hod_record.get("department"):
+                cursor.execute("DELETE FROM users WHERE department = %s AND role = 'HOD'", (hod_record["department"],))
 
-        cursor.execute("DELETE FROM hods WHERE id = %s OR department = %s", (item_id, item_id))
+        if str(item_id).isdigit():
+            cursor.execute("DELETE FROM hods WHERE id = %s OR department = %s OR faculty_id = %s", (int(item_id), item_id, item_id))
+        else:
+            cursor.execute("DELETE FROM hods WHERE department = %s OR faculty_id = %s", (item_id, item_id))
+
         conn.commit()
-        return handler_instance._send_json({"success": True, "message": "HOD record deleted successfully"})
+        return handler_instance._send_json({"success": True, "message": "HOD record and login account deleted successfully"})
     except Exception as e:
         conn.rollback()
         return handler_instance._send_json({"success": False, "message": f"Database deletion error: {str(e)}"}, 500)

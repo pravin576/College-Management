@@ -8,11 +8,11 @@ def check_duplicate(cursor, mobile, email, username, student_id=None, faculty_id
     if username:
         cursor.execute("SELECT id FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(%s))", (username,))
         if cursor.fetchone():
-            return True, f"Username '{username}' is already registered!"
+            return True, f"Username '{username}' is already registered! If your account was created by Admin/HOD, please log in directly."
     if email:
         cursor.execute("SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s))", (email,))
         if cursor.fetchone():
-            return True, f"Email '{email}' is already registered!"
+            return True, f"Email '{email}' is already registered! Please log in directly."
     if mobile:
         cursor.execute("SELECT id FROM users WHERE TRIM(mobile) = TRIM(%s)", (mobile,))
         if cursor.fetchone():
@@ -20,7 +20,10 @@ def check_duplicate(cursor, mobile, email, username, student_id=None, faculty_id
     if student_id:
         cursor.execute("SELECT id FROM students WHERE id = %s", (student_id,))
         if cursor.fetchone():
-            return True, f"Student ID '{student_id}' is already registered!"
+            return True, f"This Enrollment Number '{student_id}' is already registered and an account has been created by the Administration. Please log in directly."
+        cursor.execute("SELECT id FROM users WHERE student_id = %s OR username = %s", (student_id, student_id))
+        if cursor.fetchone():
+            return True, f"This Enrollment Number '{student_id}' is already registered. Please log in directly."
     if roll_number and department:
         cursor.execute("SELECT id FROM students WHERE roll_number = %s AND LOWER(TRIM(department)) = LOWER(TRIM(%s))", (roll_number, department))
         if cursor.fetchone():
@@ -28,7 +31,10 @@ def check_duplicate(cursor, mobile, email, username, student_id=None, faculty_id
     if faculty_id:
         cursor.execute("SELECT id FROM faculty WHERE id = %s", (faculty_id,))
         if cursor.fetchone():
-            return True, f"Faculty ID '{faculty_id}' is already registered!"
+            return True, f"Faculty ID '{faculty_id}' is already registered and an account has been created by the Administration. Please log in directly."
+        cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR username = %s", (faculty_id, faculty_id))
+        if cursor.fetchone():
+            return True, f"Faculty ID '{faculty_id}' is already registered. Please log in directly."
         cursor.execute("SELECT id FROM hods WHERE faculty_id = %s", (faculty_id,))
         if cursor.fetchone():
             return True, f"HOD/Faculty ID '{faculty_id}' is already registered!"

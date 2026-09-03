@@ -156,7 +156,8 @@ async function saveStudentForm(e) {
     admissionYear: document.getElementById("modalAdmissionYear").value,
     address: document.getElementById("modalAddress").value.trim(),
     status: document.getElementById("modalStatus") ? document.getElementById("modalStatus").value : "Active",
-    is_edit: isEditingStudent
+    is_edit: isEditingStudent,
+    password: (document.getElementById("modalStudentPassword")?.value || "").trim()
   };
 
   const res = await fetchAPI("/api/students", {

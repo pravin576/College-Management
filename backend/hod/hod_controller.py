@@ -183,10 +183,18 @@ def handle_post_hods(handler_instance, query_params, body):
             cursor.execute("SELECT id, username FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR (email = %s AND email != '')", (dept, f_id, official_email))
             existing_user = cursor.fetchone()
             if existing_user:
-                cursor.execute(
-                    "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
-                    (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
-                )
+                new_pass = (body.get("password") or "").strip()
+                if new_pass:
+                    hashed = hash_password(new_pass)
+                    cursor.execute(
+                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s, password = %s WHERE id = %s",
+                        (name, official_email, dept, f_id, official_contact, status_val, hashed, existing_user["id"])
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
+                        (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
+                    )
                 success_msg = f"HOD leadership updated successfully for {dept}!"
                 cred_payload = None
             else:
@@ -218,10 +226,18 @@ def handle_post_hods(handler_instance, query_params, body):
             cursor.execute("SELECT id, username FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR (email = %s AND email != '')", (dept, f_id, official_email))
             existing_user = cursor.fetchone()
             if existing_user:
-                cursor.execute(
-                    "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
-                    (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
-                )
+                new_pass = (body.get("password") or "").strip()
+                if new_pass:
+                    hashed = hash_password(new_pass)
+                    cursor.execute(
+                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s, password = %s WHERE id = %s",
+                        (name, official_email, dept, f_id, official_contact, status_val, hashed, existing_user["id"])
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
+                        (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
+                    )
                 success_msg = f"HOD assigned successfully for {dept}!"
                 cred_payload = None
             else:

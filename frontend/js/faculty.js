@@ -105,7 +105,8 @@ async function saveFacultyForm(e) {
     email: document.getElementById("modalFacultyEmail").value.trim(),
     mobile: document.getElementById("modalFacultyMobile").value.trim(),
     experience: document.getElementById("modalFacultyExperience").value.trim(),
-    status: document.getElementById("modalFacultyStatus").value
+    status: document.getElementById("modalFacultyStatus").value,
+    password: (document.getElementById("modalFacultyPassword")?.value || "").trim()
   };
 
   const res = await fetchAPI("/api/faculty", {

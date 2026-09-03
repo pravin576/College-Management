@@ -380,7 +380,8 @@ async function saveHodForm(e) {
     qualification: document.getElementById("modalHodQualification").value.trim(),
     experience: document.getElementById("modalHodExperience").value.trim(),
     email: document.getElementById("modalHodEmail").value.trim(),
-    contact: document.getElementById("modalHodContact").value.trim()
+    contact: document.getElementById("modalHodContact").value.trim(),
+    password: (document.getElementById("modalHodPassword")?.value || "").trim()
   };
 
   if (submitBtn) {

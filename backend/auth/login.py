@@ -19,16 +19,24 @@ def handle_login(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Find user by username, email, enrollment number (student_id), or faculty_id
+        # Find user by username, email, enrollment number (student_id), faculty_id, or student roll number
         cursor.execute(
-            """SELECT * FROM users 
-               WHERE username = %s OR email = %s OR student_id = %s OR faculty_id = %s""",
-            (username_or_email, username_or_email, username_or_email, username_or_email)
+            """SELECT u.* FROM users u 
+               LEFT JOIN students s ON u.student_id = s.id
+               LEFT JOIN hods h ON (u.role = 'HOD' AND u.department = h.department)
+               WHERE LOWER(u.username) = LOWER(%s) 
+                  OR LOWER(u.email) = LOWER(%s) 
+                  OR LOWER(COALESCE(u.student_id, '')) = LOWER(%s) 
+                  OR LOWER(COALESCE(u.faculty_id, '')) = LOWER(%s)
+                  OR (u.role = 'Student' AND LOWER(COALESCE(s.roll_number, '')) = LOWER(%s))
+                  OR (u.role = 'HOD' AND LOWER(COALESCE(h.faculty_id, '')) = LOWER(%s))
+               LIMIT 1""",
+            (username_or_email, username_or_email, username_or_email, username_or_email, username_or_email, username_or_email)
         )
         user = cursor.fetchone()
         
         if not user:
-            return handler_instance._send_json({"success": False, "message": "Invalid credentials"}, 401)
+            return handler_instance._send_json({"success": False, "message": "Invalid credentials. Please check your username/ID and password."}, 401)
             
         # Role validation if specified in the login request (e.g. from role dropdown)
         if requested_role and requested_role.strip().lower() not in ["all", "all roles"]:

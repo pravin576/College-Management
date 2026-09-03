@@ -112,10 +112,18 @@ def handle_post_faculty(handler_instance, query_params, body):
         cursor.execute("SELECT id FROM users WHERE faculty_id = %s OR username = %s OR (email = %s AND email != '')", (f_id, f_id, email))
         existing_user = cursor.fetchone()
         if existing_user:
-            cursor.execute(
-                "UPDATE users SET name = %s, department = %s, mobile = %s, email = %s, status = %s WHERE id = %s",
-                (name, dept, mobile if mobile else "9876543210", email if email else f"{f_id.lower()}@college.edu", status_val, existing_user["id"])
-            )
+            new_pass = (body.get("password") or "").strip()
+            if new_pass:
+                hashed = hash_password(new_pass)
+                cursor.execute(
+                    "UPDATE users SET name = %s, department = %s, mobile = %s, email = %s, status = %s, password = %s WHERE id = %s",
+                    (name, dept, mobile if mobile else "9876543210", email if email else f"{f_id.lower()}@college.edu", status_val, hashed, existing_user["id"])
+                )
+            else:
+                cursor.execute(
+                    "UPDATE users SET name = %s, department = %s, mobile = %s, email = %s, status = %s WHERE id = %s",
+                    (name, dept, mobile if mobile else "9876543210", email if email else f"{f_id.lower()}@college.edu", status_val, existing_user["id"])
+                )
             success_msg = "Faculty record updated successfully!"
             cred_payload = None
         else:

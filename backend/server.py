@@ -130,6 +130,9 @@ class ERPRequestHandler(http.server.SimpleHTTPRequestHandler):
             from router import handle_request
             handle_request(method, self)
         except Exception as e:
+            import traceback
+            print(f"[SERVER EXCEPTION on {method} {self.path}]:")
+            traceback.print_exc()
             try:
                 self._send_json({"success": False, "message": "Internal Server Error"}, 500)
             except:

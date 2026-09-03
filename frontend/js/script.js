@@ -345,165 +345,229 @@ function switchRegistrationRole(role) {
 
 async function handleStudentRegisterSubmit(e) {
   e.preventDefault();
-  const name = document.getElementById("regStudentName").value.trim();
-  const year = document.getElementById("regStudentYear").value;
-  const email = document.getElementById("regStudentEmail").value.trim();
-  const mobile = document.getElementById("regStudentPhone").value.trim();
-  const studentId = document.getElementById("regStudentId").value.trim();
-  const rollNumber = document.getElementById("regStudentRollNumber").value.trim();
-  const department = document.getElementById("regStudentDepartment").value;
-  const username = document.getElementById("regStudentUsername").value.trim();
-  const password = document.getElementById("regStudentPassword").value.trim();
-  const confirmPassword = document.getElementById("regStudentConfirmPassword").value.trim();
-
-  if (password !== confirmPassword) {
-    showToast("Password and Confirm Password do not match!", "danger");
-    return;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registering...';
   }
 
-  const payload = {
-    role: "Student",
-    name,
-    year,
-    email,
-    mobile,
-    studentId,
-    rollNumber,
-    department,
-    username,
-    password,
-    confirmPassword
-  };
+  try {
+    const name = document.getElementById("regStudentName").value.trim();
+    const year = document.getElementById("regStudentYear").value;
+    const email = document.getElementById("regStudentEmail").value.trim();
+    const mobile = document.getElementById("regStudentPhone").value.trim();
+    const studentId = document.getElementById("regStudentId").value.trim();
+    const rollNumber = document.getElementById("regStudentRollNumber").value.trim();
+    const department = document.getElementById("regStudentDepartment").value;
+    const username = document.getElementById("regStudentUsername").value.trim();
+    const password = document.getElementById("regStudentPassword").value.trim();
+    const confirmPassword = document.getElementById("regStudentConfirmPassword").value.trim();
 
-  const data = await fetchAPI("/api/register", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+    if (password !== confirmPassword) {
+      showToast("Password and Confirm Password do not match!", "danger");
+      return;
+    }
 
-  if (data.success && data.user) {
-    showToast("Registration Successful! Your account has been created successfully.", "success");
-    showRegistrationSuccess(username);
-  } else {
-    showToast(data.message || "Student registration failed", "danger");
+    const payload = {
+      role: "Student",
+      name,
+      year,
+      email,
+      mobile,
+      studentId,
+      rollNumber,
+      department,
+      username,
+      password,
+      confirmPassword
+    };
+
+    const data = await fetchAPI("/api/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (data.success && data.user) {
+      showToast(data.message || "Registration Successful! Your account has been created.", "success");
+      showRegistrationSuccess(username);
+    } else {
+      showToast(data.message || "Student registration failed", "danger");
+    }
+  } catch (err) {
+    showToast("Registration failed due to a server/database error. Please check the server console.", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="bi bi-person-check-fill me-2"></i>Register Student Account';
+    }
   }
 }
 
 async function handleFacultyRegisterSubmit(e) {
   e.preventDefault();
-  const name = document.getElementById("regFacultyName").value.trim();
-  const mobile = (document.getElementById("regFacultyPhone")?.value || "").trim();
-  const email = (document.getElementById("regFacultyEmail")?.value || "").trim();
-  const department = document.getElementById("regFacultyDepartment").value;
-  const username = document.getElementById("regFacultyUsername").value.trim();
-  const password = document.getElementById("regFacultyPassword").value.trim();
-  const confirmPassword = document.getElementById("regFacultyConfirmPassword").value.trim();
-
-  if (password !== confirmPassword) {
-    showToast("Password and Confirm Password do not match!", "danger");
-    return;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registering...';
   }
 
-  const payload = {
-    role: "Faculty",
-    name,
-    mobile,
-    email,
-    department,
-    username,
-    password,
-    confirmPassword
-  };
+  try {
+    const name = document.getElementById("regFacultyName").value.trim();
+    const mobile = (document.getElementById("regFacultyPhone")?.value || "").trim();
+    const email = (document.getElementById("regFacultyEmail")?.value || "").trim();
+    const department = document.getElementById("regFacultyDepartment").value;
+    const username = document.getElementById("regFacultyUsername").value.trim();
+    const password = document.getElementById("regFacultyPassword").value.trim();
+    const confirmPassword = document.getElementById("regFacultyConfirmPassword").value.trim();
 
-  const data = await fetchAPI("/api/register", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+    if (password !== confirmPassword) {
+      showToast("Password and Confirm Password do not match!", "danger");
+      return;
+    }
 
-  if (data.success && data.user) {
-    showToast("Registration Successful! Your account has been created successfully.", "success");
-    showRegistrationSuccess(username);
-  } else {
-    showToast(data.message || "Faculty registration failed", "danger");
+    const payload = {
+      role: "Faculty",
+      name,
+      mobile,
+      email,
+      department,
+      username,
+      password,
+      confirmPassword
+    };
+
+    const data = await fetchAPI("/api/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (data.success && data.user) {
+      showToast(data.message || "Registration Successful! Your account has been created.", "success");
+      showRegistrationSuccess(username);
+    } else {
+      showToast(data.message || "Faculty registration failed", "danger");
+    }
+  } catch (err) {
+    showToast("Registration failed due to a server/database error. Please check the server console.", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="bi bi-person-badge-fill me-2"></i>Register Faculty Account';
+    }
   }
 }
 
 async function handleHodRegisterSubmit(e) {
   e.preventDefault();
-  const name = document.getElementById("regHodName").value.trim();
-  const department = document.getElementById("regHodDepartment").value;
-  const qualification = document.getElementById("regHodQualification").value.trim();
-  const mobile = (document.getElementById("regHodPhone")?.value || "").trim();
-  const experience = document.getElementById("regHodExperience").value.trim();
-  const email = document.getElementById("regHodEmail").value.trim();
-  const username = document.getElementById("regHodUsername").value.trim();
-  const password = document.getElementById("regHodPassword").value.trim();
-  const confirmPassword = document.getElementById("regHodConfirmPassword").value.trim();
-
-  if (password !== confirmPassword) {
-    showToast("Password and Confirm Password do not match!", "danger");
-    return;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registering...';
   }
 
-  const payload = {
-    role: "HOD",
-    name,
-    department,
-    qualification,
-    mobile,
-    experience,
-    email,
-    username,
-    password,
-    confirmPassword
-  };
+  try {
+    const name = document.getElementById("regHodName").value.trim();
+    const department = document.getElementById("regHodDepartment").value;
+    const qualification = document.getElementById("regHodQualification").value.trim();
+    const mobile = (document.getElementById("regHodPhone")?.value || "").trim();
+    const experience = document.getElementById("regHodExperience").value.trim();
+    const email = document.getElementById("regHodEmail").value.trim();
+    const username = document.getElementById("regHodUsername").value.trim();
+    const password = document.getElementById("regHodPassword").value.trim();
+    const confirmPassword = document.getElementById("regHodConfirmPassword").value.trim();
 
-  const data = await fetchAPI("/api/register", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+    if (password !== confirmPassword) {
+      showToast("Password and Confirm Password do not match!", "danger");
+      return;
+    }
 
-  if (data.success && data.user) {
-    showToast("Registration Successful! Your account has been created successfully.", "success");
-    showRegistrationSuccess(username);
-  } else {
-    showToast(data.message || "HOD registration failed", "danger");
+    const payload = {
+      role: "HOD",
+      name,
+      department,
+      qualification,
+      mobile,
+      experience,
+      email,
+      username,
+      password,
+      confirmPassword
+    };
+
+    const data = await fetchAPI("/api/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (data.success && data.user) {
+      showToast(data.message || "Registration Successful! Your account has been created.", "success");
+      showRegistrationSuccess(username);
+    } else {
+      showToast(data.message || "HOD registration failed", "danger");
+    }
+  } catch (err) {
+    showToast("Registration failed due to a server/database error. Please check the server console.", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="bi bi-person-workspace me-2"></i>Register HOD Account';
+    }
   }
 }
 
 async function handleAdminRegisterSubmit(e) {
   e.preventDefault();
-  const name = document.getElementById("regAdminName").value.trim();
-  const mobile = (document.getElementById("regAdminPhone")?.value || "").trim();
-  const email = document.getElementById("regAdminEmail").value.trim();
-  const username = document.getElementById("regAdminUsername").value.trim();
-  const password = document.getElementById("regAdminPassword").value.trim();
-  const confirmPassword = document.getElementById("regAdminConfirmPassword").value.trim();
-
-  if (password !== confirmPassword) {
-    showToast("Password and Confirm Password do not match!", "danger");
-    return;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registering...';
   }
 
-  const payload = {
-    role: "Administrator",
-    name,
-    mobile,
-    email,
-    username,
-    password,
-    confirmPassword
-  };
+  try {
+    const name = document.getElementById("regAdminName").value.trim();
+    const mobile = (document.getElementById("regAdminPhone")?.value || "").trim();
+    const email = document.getElementById("regAdminEmail").value.trim();
+    const username = document.getElementById("regAdminUsername").value.trim();
+    const password = document.getElementById("regAdminPassword").value.trim();
+    const confirmPassword = document.getElementById("regAdminConfirmPassword").value.trim();
 
-  const data = await fetchAPI("/api/register", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+    if (password !== confirmPassword) {
+      showToast("Password and Confirm Password do not match!", "danger");
+      return;
+    }
 
-  if (data.success && data.user) {
-    showToast("Registration Successful! Your account has been created successfully.", "success");
-    showRegistrationSuccess(username);
-  } else {
-    showToast(data.message || "Administrator registration failed", "danger");
+    const payload = {
+      role: "Administrator",
+      name,
+      mobile,
+      email,
+      username,
+      password,
+      confirmPassword
+    };
+
+    const data = await fetchAPI("/api/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (data.success && data.user) {
+      showToast(data.message || "Registration Successful! Your account has been created.", "success");
+      showRegistrationSuccess(username);
+    } else {
+      showToast(data.message || "Administrator registration failed", "danger");
+    }
+  } catch (err) {
+    showToast("Registration failed due to a server/database error. Please check the server console.", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="bi bi-shield-lock-fill me-2"></i>Register Administrator Account';
+    }
   }
 }
 

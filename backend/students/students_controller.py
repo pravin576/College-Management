@@ -328,7 +328,7 @@ def handle_post_students(handler_instance, query_params, body):
             if cursor.fetchone():
                 return handler_instance._send_json({"success": False, "message": f"Duplicate Error: Roll Number '{roll_number}' already exists in department '{dept}'!"}, 400)
 
-        if existing_stu or is_edit:
+        if existing_stu:
             cursor.execute(
                 """UPDATE students 
                    SET roll_number = %s, name = %s, email = %s, mobile = %s, gender = %s, dob = %s, department = %s,

@@ -202,11 +202,19 @@ def handle_post_hods(handler_instance, query_params, body):
             )
 
         # Check for user account to link/promote/create
-        cursor.execute(
-            "SELECT id, username, role FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR username = %s OR (email = %s AND email != '')",
-            (dept, f_id, username, official_email)
-        )
-        existing_user = cursor.fetchone()
+        existing_user = None
+        if f_id:
+            cursor.execute("SELECT id, username, role FROM users WHERE faculty_id = %s", (f_id,))
+            existing_user = cursor.fetchone()
+        if not existing_user and official_email:
+            cursor.execute("SELECT id, username, role FROM users WHERE email = %s AND email != ''", (official_email,))
+            existing_user = cursor.fetchone()
+        if not existing_user and username:
+            cursor.execute("SELECT id, username, role FROM users WHERE username = %s", (username,))
+            existing_user = cursor.fetchone()
+        if not existing_user:
+            cursor.execute("SELECT id, username, role FROM users WHERE department = %s AND role = 'HOD'", (dept,))
+            existing_user = cursor.fetchone()
 
         new_pass = (body.get("password") or "").strip()
         cred_payload = None

@@ -79,12 +79,12 @@
               <form id="profileForm" onsubmit="saveProfileForm(event)">
                 <div class="row g-3">
                   <div class="col-md-6">
-                    <label class="form-label">Username</label>
-                    <input type="text" id="profUsername" class="form-control" readonly disabled>
+                    <label class="form-label">Current Username</label>
+                    <input type="text" id="profUsername" class="form-control bg-light" readonly disabled>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label">Role</label>
-                    <input type="text" id="profRole" class="form-control" readonly disabled>
+                    <input type="text" id="profRole" class="form-control bg-light" readonly disabled>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label">Full Name *</label>
@@ -94,17 +94,80 @@
                     <label class="form-label">Email Address *</label>
                     <input type="email" id="profEmail" class="form-control" required>
                   </div>
+                  <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary fw-bold px-4"><i class="bi bi-check-circle me-1"></i> Update Profile Details</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <!-- Change Username Card -->
+            <div class="card shadow-sm p-4 mt-4">
+              <h5 class="fw-bold mb-3 border-bottom pb-2 text-primary"><i class="bi bi-person-gear me-2"></i> Change Username</h5>
+              <p class="text-muted small mb-3">Update your login username. Your current password is required to verify your identity.</p>
+              
+              <form id="changeUsernameForm" onsubmit="submitChangeUsername(event)">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Current Username</label>
+                    <input type="text" id="changeUserCurrentDisplay" class="form-control bg-light" readonly disabled>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">New Username *</label>
+                    <input type="text" id="changeUserNew" class="form-control" placeholder="Enter new unique username" minlength="3" maxlength="50" required>
+                  </div>
                   <div class="col-12">
-                    <label class="form-label">New Password (Leave blank to keep current password)</label>
+                    <label class="form-label">Current Password (for Verification) *</label>
                     <div class="input-group">
-                      <input type="password" id="profPassword" class="form-control" placeholder="Enter new password">
-                      <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('profPassword', this)" title="Show/Hide Password">
+                      <input type="password" id="changeUserPassword" class="form-control" placeholder="Enter your current password" required>
+                      <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('changeUserPassword', this)" title="Show/Hide Password">
                         <i class="bi bi-eye"></i>
                       </button>
                     </div>
                   </div>
                   <div class="col-12 text-end">
-                    <button type="submit" class="btn btn-primary fw-bold px-4"><i class="bi bi-check-circle me-1"></i> Update Profile Settings</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4"><i class="bi bi-person-check me-1"></i> Update Username</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <!-- Change Password Card -->
+            <div class="card shadow-sm p-4 mt-4">
+              <h5 class="fw-bold mb-3 border-bottom pb-2 text-primary"><i class="bi bi-key-fill me-2"></i> Change Password</h5>
+              <p class="text-muted small mb-3">Update your account password securely. Passwords must be at least 6 characters long.</p>
+              
+              <form id="changePasswordForm" onsubmit="submitChangePassword(event)">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <label class="form-label">Current Password *</label>
+                    <div class="input-group">
+                      <input type="password" id="changePassCurrent" class="form-control" placeholder="Enter current password" required>
+                      <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('changePassCurrent', this)" title="Show/Hide Password">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">New Password *</label>
+                    <div class="input-group">
+                      <input type="password" id="changePassNew" class="form-control" placeholder="Enter new password (min 6 chars)" minlength="6" required>
+                      <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('changePassNew', this)" title="Show/Hide Password">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Confirm New Password *</label>
+                    <div class="input-group">
+                      <input type="password" id="changePassConfirm" class="form-control" placeholder="Confirm new password" minlength="6" required>
+                      <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('changePassConfirm', this)" title="Show/Hide Password">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary fw-bold px-4"><i class="bi bi-shield-lock me-1"></i> Update Password</button>
                   </div>
                 </div>
               </form>

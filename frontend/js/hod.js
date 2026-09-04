@@ -1,17 +1,24 @@
 /**
- * HOD Module Controller
+ * HOD Module Controller - Robust HOD Management & Department Isolation
  */
 let allHods = [];
 let hodAllStudents = [];
 let currentDept = "Computer Engineering";
 let currentFacultyId = "";
 let currentAssignedStudents = [];
+let departmentFacultyList = [];
+let isEditingHod = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
   const user = await checkAuth();
   if (user) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryDept = urlParams.get("department");
+
     if (user.role === "HOD" && user.department) {
       currentDept = user.department;
+    } else if (queryDept) {
+      currentDept = queryDept;
     }
     
     const globalDeptSelect = document.getElementById("hodGlobalDeptFilter");
@@ -19,17 +26,36 @@ document.addEventListener("DOMContentLoaded", async () => {
       globalDeptSelect.value = currentDept;
       if (user.role === "HOD") {
         globalDeptSelect.disabled = true;
-        globalDeptSelect.title = `Department locked to ${currentDept}`;
+        globalDeptSelect.title = `Department strictly locked to ${currentDept}`;
       }
     }
 
-    if (user.role !== "Administrator") {
-      document.querySelectorAll(".action-add-hod").forEach(btn => btn.classList.add("d-none"));
+    const pageTitleEl = document.querySelector(".erp-page-title");
+    if (pageTitleEl) {
+      if (["Administrator", "Admin"].includes(user.role)) {
+        pageTitleEl.textContent = "HOD Leadership & Department Management";
+      } else if (user.role === "HOD") {
+        pageTitleEl.textContent = `${currentDept} - Faculty-Student Assignment Portal`;
+      }
+    }
+
+    const assignCard = document.getElementById("facultyStudentAssignmentCard");
+    if (["Administrator", "Admin"].includes(user.role)) {
+      if (assignCard) assignCard.classList.add("d-none");
+      document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, .action-assign-student, .action-remove-assignment").forEach(el => el.classList.add("d-none"));
+    } else if (user.role === "HOD") {
+      if (assignCard) assignCard.classList.remove("d-none");
+      document.querySelectorAll(".action-add-hod, .action-edit-hod").forEach(btn => btn.classList.add("d-none"));
+    } else {
+      if (assignCard) assignCard.classList.add("d-none");
+      document.querySelectorAll(".action-add-hod, .action-edit-hod").forEach(btn => btn.classList.add("d-none"));
     }
 
     await loadHodDashboardStats(currentDept);
     await loadHodStudents(currentDept);
-    await loadHodFacultyList(currentDept);
+    if (user.role === "HOD") {
+      await loadHodFacultyList(currentDept);
+    }
     await loadHodData();
   }
 });
@@ -51,14 +77,14 @@ async function loadHodDashboardStats(dept = currentDept) {
   const res = await fetchAPI(`/api/hod/dashboard-stats?department=${encodeURIComponent(dept)}`);
   if (res.success && res.stats) {
     const s = res.stats;
-    if (document.getElementById("countFirstYear")) document.getElementById("countFirstYear").textContent = `${s.firstYearStudents} Students`;
-    if (document.getElementById("countSecondYear")) document.getElementById("countSecondYear").textContent = `${s.secondYearStudents} Students`;
-    if (document.getElementById("countThirdYear")) document.getElementById("countThirdYear").textContent = `${s.thirdYearStudents} Students`;
-    if (document.getElementById("countTotalStudents")) document.getElementById("countTotalStudents").textContent = `${s.totalStudents} Students`;
+    if (document.getElementById("countFirstYear")) document.getElementById("countFirstYear").textContent = `${s.firstYearStudents || 0} Students`;
+    if (document.getElementById("countSecondYear")) document.getElementById("countSecondYear").textContent = `${s.secondYearStudents || 0} Students`;
+    if (document.getElementById("countThirdYear")) document.getElementById("countThirdYear").textContent = `${s.thirdYearStudents || 0} Students`;
+    if (document.getElementById("countTotalStudents")) document.getElementById("countTotalStudents").textContent = `${s.totalStudents || 0} Students`;
 
-    if (document.getElementById("hodTotalFaculty")) document.getElementById("hodTotalFaculty").textContent = `${s.totalFaculty} Members`;
-    if (document.getElementById("hodAttendanceRate")) document.getElementById("hodAttendanceRate").textContent = `${s.attendancePercentage}%`;
-    if (document.getElementById("hodPassPercentage")) document.getElementById("hodPassPercentage").textContent = `${s.resultPassPercentage}%`;
+    if (document.getElementById("hodTotalFaculty")) document.getElementById("hodTotalFaculty").textContent = `${s.totalFaculty || 0} Faculty`;
+    if (document.getElementById("hodAttendanceRate")) document.getElementById("hodAttendanceRate").textContent = `${s.attendancePercentage || 100}%`;
+    if (document.getElementById("hodPassPercentage")) document.getElementById("hodPassPercentage").textContent = `${s.resultPassPercentage || 100}%`;
     if (document.getElementById("hodPendingFees")) document.getElementById("hodPendingFees").textContent = `₹${(s.pendingFees || 0).toLocaleString()}`;
   }
 }
@@ -122,10 +148,12 @@ async function loadHodFacultyList(dept = currentDept) {
   if (!select) return;
 
   if (res.success && res.faculty && res.faculty.length > 0) {
+    departmentFacultyList = res.faculty;
     select.innerHTML = `<option value="">-- Select Faculty Member --</option>` + res.faculty.map(f => `
       <option value="${f.id}">${f.name} (${f.designation || 'Faculty'})</option>
     `).join("");
   } else {
+    departmentFacultyList = [];
     select.innerHTML = `<option value="">No Faculty Found in ${dept}</option>`;
   }
 
@@ -277,6 +305,9 @@ async function removeFacultyStudentAssignment(facultyId, studentId) {
   }
 }
 
+// ----------------------------------------------------
+// HOD Leadership Directory Functions
+// ----------------------------------------------------
 async function loadHodData() {
   const res = await fetchAPI("/api/hods");
   if (res.success && res.hods) {
@@ -292,7 +323,7 @@ function renderHodTable(hods) {
   if (!tbody) return;
 
   if (hods.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No data available.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No HOD records available.</td></tr>`;
     return;
   }
 
@@ -319,24 +350,93 @@ function renderHodTable(hods) {
         <td>${statusBadge}</td>
         <td>
           ${isAdmin ? `
-            <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="editHod('${h.department}')" title="Edit HOD"><i class="bi bi-pencil"></i> Edit</button>
+            <button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="editHod('${h.department}')" title="Edit / Reassign HOD"><i class="bi bi-pencil"></i> Edit</button>
             ${isPending ? `
               <button class="btn btn-sm btn-success me-1" onclick="approveHodDirect('${h.user_id || h.id || ''}', '${h.email}', '${h.department}')" title="Approve & Activate"><i class="bi bi-check-circle"></i> Approve</button>
             ` : ''}
             <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteHod('${h.id || h.department}')" title="Delete"><i class="bi bi-trash"></i> Delete</button>
-          ` : `<span class="text-muted small">Assigned HOD</span>`}
+          ` : `<span class="text-muted small"><i class="bi bi-check2 me-1"></i> Active HOD</span>`}
         </td>
       </tr>
     `;
   }).join("");
 }
 
-let isEditingHod = false;
+// ----------------------------------------------------
+// Assign / Edit HOD Modal Helpers
+// ----------------------------------------------------
+async function openAssignHodModal(dept = currentDept) {
+  isEditingHod = false;
 
-function editHod(department) {
+  const titleEl = document.getElementById("addHodModalTitle");
+  if (titleEl) titleEl.innerHTML = `<i class="bi bi-person-badge me-2"></i> Assign Head of Department (HOD)`;
+
+  const deptEl = document.getElementById("modalHodDepartment");
+  if (deptEl) deptEl.value = dept;
+
+  document.getElementById("modalHodFacultyId").value = "";
+  document.getElementById("modalHodName").value = "";
+  document.getElementById("modalHodQualification").value = "Ph.D. in Engineering";
+  document.getElementById("modalHodExperience").value = "10 Years";
+  document.getElementById("modalHodEmail").value = "";
+  document.getElementById("modalHodContact").value = "";
+  if (document.getElementById("modalHodPassword")) document.getElementById("modalHodPassword").value = "";
+
+  await loadModalFacultyOptions(dept);
+  openModal("addHodModal");
+}
+
+async function loadModalFacultyOptions(dept) {
+  const select = document.getElementById("modalHodFacultySelect");
+  if (!select) return;
+
+  select.innerHTML = `<option value="">-- Loading Department Faculty... --</option>`;
+  const res = await fetchAPI(`/api/faculty?department=${encodeURIComponent(dept)}`);
+  
+  if (res.success && res.faculty && res.faculty.length > 0) {
+    select.innerHTML = `<option value="">-- Or Create New / External HOD --</option>` + res.faculty.map(f => `
+      <option value="${f.id}" data-name="${encodeURIComponent(f.name)}" data-email="${encodeURIComponent(f.email)}" data-mobile="${encodeURIComponent(f.mobile || '')}" data-exp="${encodeURIComponent(f.experience || '8 Years')}">
+        Promote: ${f.name} (${f.id} - ${f.designation || 'Faculty'})
+      </option>
+    `).join("");
+  } else {
+    select.innerHTML = `<option value="">-- No Faculty in ${dept} (Create New HOD) --</option>`;
+  }
+}
+
+async function onModalDeptChange(dept) {
+  await loadModalFacultyOptions(dept);
+}
+
+function onModalFacultySelect(facultyId) {
+  const select = document.getElementById("modalHodFacultySelect");
+  const opt = select.options[select.selectedIndex];
+  const fidInput = document.getElementById("modalHodFacultyId");
+
+  if (!facultyId || !opt) {
+    if (fidInput) fidInput.value = "";
+    return;
+  }
+
+  const fName = decodeURIComponent(opt.getAttribute("data-name") || "");
+  const fEmail = decodeURIComponent(opt.getAttribute("data-email") || "");
+  const fMobile = decodeURIComponent(opt.getAttribute("data-mobile") || "");
+  const fExp = decodeURIComponent(opt.getAttribute("data-exp") || "10 Years");
+
+  if (fidInput) fidInput.value = facultyId;
+  if (fName && document.getElementById("modalHodName")) document.getElementById("modalHodName").value = fName;
+  if (fEmail && document.getElementById("modalHodEmail")) document.getElementById("modalHodEmail").value = fEmail;
+  if (fMobile && document.getElementById("modalHodContact")) document.getElementById("modalHodContact").value = fMobile;
+  if (fExp && document.getElementById("modalHodExperience")) document.getElementById("modalHodExperience").value = fExp;
+}
+
+async function editHod(department) {
   const h = allHods.find(x => x.department === department);
   if (!h) return;
   isEditingHod = true;
+
+  const titleEl = document.getElementById("addHodModalTitle");
+  if (titleEl) titleEl.innerHTML = `<i class="bi bi-pencil-square me-2"></i> Update / Reassign HOD — ${department}`;
 
   const deptEl = document.getElementById("modalHodDepartment");
   const nameEl = document.getElementById("modalHodName");
@@ -344,6 +444,7 @@ function editHod(department) {
   const expEl = document.getElementById("modalHodExperience");
   const emailEl = document.getElementById("modalHodEmail");
   const contactEl = document.getElementById("modalHodContact");
+  const fidInput = document.getElementById("modalHodFacultyId");
 
   if (deptEl) deptEl.value = h.department;
   if (nameEl) nameEl.value = h.name || "";
@@ -351,7 +452,9 @@ function editHod(department) {
   if (expEl) expEl.value = h.experience || "10 Years";
   if (emailEl) emailEl.value = h.email || "";
   if (contactEl) contactEl.value = h.contact || "";
+  if (fidInput) fidInput.value = h.faculty_id || "";
 
+  await loadModalFacultyOptions(h.department);
   openModal("addHodModal");
 }
 
@@ -373,9 +476,14 @@ async function saveHodForm(e) {
   const submitBtn = e.target.querySelector('button[type="submit"]') || document.querySelector('#addHodModal button[type="submit"]');
   const originalHtml = submitBtn ? submitBtn.innerHTML : "";
 
+  const selectedDept = document.getElementById("modalHodDepartment").value;
+  const existingHodInDept = allHods.some(h => h.department === selectedDept);
+
   const payload = {
     is_edit: isEditingHod,
-    department: document.getElementById("modalHodDepartment").value,
+    reassign: existingHodInDept,
+    department: selectedDept,
+    faculty_id: document.getElementById("modalHodFacultyId").value || undefined,
     name: document.getElementById("modalHodName").value.trim(),
     qualification: document.getElementById("modalHodQualification").value.trim(),
     experience: document.getElementById("modalHodExperience").value.trim(),
@@ -398,7 +506,8 @@ async function saveHodForm(e) {
     if (res.success) {
       isEditingHod = false;
       closeModal("addHodModal");
-      loadHodData();
+      await loadHodData();
+      await loadHodDashboardStats(payload.department);
       if (res.credentials) {
         showCredentialModal(res.credentials);
       } else {
@@ -418,15 +527,16 @@ async function saveHodForm(e) {
 }
 
 async function deleteHod(idOrDept) {
-  if (!confirm(`Are you sure you want to delete HOD record for '${idOrDept}'?`)) return;
+  if (!confirm(`Are you sure you want to delete HOD leadership record for '${idOrDept}'?`)) return;
 
   const res = await fetchAPI(`/api/hods?id=${encodeURIComponent(idOrDept)}`, {
     method: "DELETE"
   });
 
   if (res.success) {
-    showToast("HOD record deleted", "success");
-    loadHodData();
+    showToast("HOD record deleted successfully", "success");
+    await loadHodData();
+    await loadHodDashboardStats(currentDept);
   } else {
     showToast(res.message || "Failed to delete HOD", "danger");
   }

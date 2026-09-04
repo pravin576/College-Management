@@ -202,19 +202,67 @@ function updateSidebarUserUI(user) {
 
 function applyRoleVisibility(user) {
   const role = user.role;
+  const dept = user.department;
   
+  const linkDash = document.querySelector('a.erp-nav-link[href="dashboard.html"]');
+  const linkStudents = document.querySelector('a.erp-nav-link[href="students.html"]');
+  const linkFaculty = document.querySelector('a.erp-nav-link[href="faculty.html"]');
+  const linkHod = document.querySelector('a.erp-nav-link[href="hod.html"]');
+  const linkAtt = document.querySelector('a.erp-nav-link[href="attendance.html"]');
+  const linkRes = document.querySelector('a.erp-nav-link[href="results.html"]');
+  const linkFees = document.querySelector('a.erp-nav-link[href="fees.html"]');
+  const linkTime = document.querySelector('a.erp-nav-link[href="timetable.html"]');
+  const linkProf = document.querySelector('a.erp-nav-link[href="profile.html"]');
+
   if (role === "Student") {
-    document.querySelectorAll(".nav-admin-hod-fac, .nav-admin-hod, .action-add-student, .action-add-faculty, .action-add-hod, .action-publish-notice, .action-add-attendance, .action-add-result, .action-add-fee, .action-add-timetable").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".nav-admin-hod-fac, .nav-admin-hod, .nav-admin-only, .role-admin-only, .role-hod-only, .action-add-student, .action-add-faculty, .action-add-hod, .action-publish-notice, .action-add-attendance, .action-add-result, .action-add-fee, .action-add-timetable, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-assign-student, .action-remove-assignment").forEach(el => el.style.display = "none");
     const payFeeBtn = document.getElementById("btnPayFee");
     if (payFeeBtn) payFeeBtn.style.display = "inline-flex";
+
+    if (linkDash) linkDash.innerHTML = `<i class="bi bi-grid-1x2-fill"></i> Student Dashboard`;
+    if (linkAtt) linkAtt.innerHTML = `<i class="bi bi-calendar-check-fill"></i> My Attendance`;
+    if (linkRes) linkRes.innerHTML = `<i class="bi bi-journal-bookmark-fill"></i> My Results`;
+    if (linkFees) linkFees.innerHTML = `<i class="bi bi-credit-card-fill"></i> My Fees`;
+    if (linkTime) linkTime.innerHTML = `<i class="bi bi-clock-fill"></i> My Timetable`;
+    if (linkProf) linkProf.innerHTML = `<i class="bi bi-person-circle"></i> My Profile`;
+
   } else if (role === "Faculty") {
-    document.querySelectorAll(".nav-admin-hod, .action-add-faculty, .action-add-hod, .action-publish-notice, .action-add-fee").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".nav-admin-hod, .nav-admin-only, .role-admin-only, .role-hod-only, .action-add-faculty, .action-add-hod, .action-publish-notice, .action-add-fee, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-assign-student, .action-remove-assignment").forEach(el => el.style.display = "none");
     const payFeeBtn = document.getElementById("btnPayFee");
     if (payFeeBtn) payFeeBtn.style.display = "none";
+
+    if (linkDash) linkDash.innerHTML = `<i class="bi bi-grid-1x2-fill"></i> Faculty Dashboard`;
+    if (linkStudents) linkStudents.innerHTML = `<i class="bi bi-mortarboard-fill"></i> Assigned Students`;
+
   } else if (role === "HOD") {
-    document.querySelectorAll(".action-add-hod").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".action-add-hod, .action-edit-hod, .nav-admin-only, .role-admin-only").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard").forEach(el => el.style.display = "");
     const payFeeBtn = document.getElementById("btnPayFee");
     if (payFeeBtn) payFeeBtn.style.display = "none";
+
+    if (linkDash) linkDash.innerHTML = `<i class="bi bi-grid-1x2-fill"></i> HOD Dashboard`;
+    if (linkHod) linkHod.innerHTML = `<i class="bi bi-person-check-fill"></i> HOD Portal`;
+
+    // Strict frontend UI lock: Prevent HOD from selecting other departments
+    if (dept) {
+      document.querySelectorAll("select#departmentFilter, select#deptFilter, select#filterDepartment, select#modalDepartment, select#modalFacultyDept, select#modalStudentDepartment, select#modalAttendanceDepartment, select#reportDeptFilter, select#modalNoticeDepartment").forEach(select => {
+        select.value = dept;
+        select.disabled = true;
+        select.title = `Department strictly restricted to ${dept}`;
+      });
+    }
+
+  } else if (["Administrator", "Admin"].includes(role)) {
+    // Admin: Full college-wide management, but NO faculty-student assignment
+    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-assign-student, .action-remove-assignment, .action-assign-faculty-students").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".nav-admin-only, .role-admin-only, .action-add-hod").forEach(el => el.style.display = "");
+    const payFeeBtn = document.getElementById("btnPayFee");
+    if (payFeeBtn) payFeeBtn.style.display = "none";
+
+    if (linkDash) linkDash.innerHTML = `<i class="bi bi-grid-1x2-fill"></i> Admin Dashboard`;
+    if (linkHod) linkHod.innerHTML = `<i class="bi bi-person-badge-fill"></i> HOD Management`;
+    if (linkStudents) linkStudents.innerHTML = `<i class="bi bi-mortarboard-fill"></i> Students`;
+    if (linkFaculty) linkFaculty.innerHTML = `<i class="bi bi-person-video3"></i> Faculty`;
   }
 }
 

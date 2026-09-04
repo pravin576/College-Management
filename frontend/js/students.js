@@ -7,6 +7,21 @@ let isEditingStudent = false;
 document.addEventListener("DOMContentLoaded", async () => {
   const user = await checkAuth();
   if (user) {
+    if (user.role === "Faculty") {
+      const pageTitle = document.querySelector(".erp-page-title");
+      if (pageTitle) pageTitle.textContent = "My Assigned Students";
+      const deptFilter = document.getElementById("filterStudentDept");
+      if (deptFilter) {
+        const col = deptFilter.closest(".col-md-3");
+        if (col) col.style.display = "none";
+      }
+    } else if (user.role === "HOD") {
+      const pageTitle = document.querySelector(".erp-page-title");
+      if (pageTitle) pageTitle.textContent = `${user.department || "Department"} - Student Records`;
+    } else if (["Administrator", "Admin"].includes(user.role)) {
+      const pageTitle = document.querySelector(".erp-page-title");
+      if (pageTitle) pageTitle.textContent = "Institutional Student Directory (All Departments)";
+    }
     loadStudentsData();
   }
 });
@@ -35,7 +50,7 @@ function renderStudentsTable(students) {
   }
 
   const user = getSession() || {};
-  const isReadOnly = user.role === "Student";
+  const canManageStudent = ["Administrator", "Admin", "HOD"].includes(user.role);
 
   tbody.innerHTML = students.map(s => `
     <tr>
@@ -51,7 +66,7 @@ function renderStudentsTable(students) {
       <td>
         <button class="btn btn-sm btn-outline-info me-1" onclick="viewStudentProfile('${s.id}')" title="Profile View"><i class="bi bi-eye"></i></button>
         <button class="btn btn-sm btn-outline-dark me-1" onclick="viewStudentIdCard('${s.id}')" title="ID Card"><i class="bi bi-card-heading"></i></button>
-        ${!isReadOnly ? `
+        ${canManageStudent ? `
           <button class="btn btn-sm btn-outline-primary me-1" onclick="editStudent('${s.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${s.id}')" title="Delete"><i class="bi bi-trash"></i></button>
         ` : ''}

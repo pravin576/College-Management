@@ -1,17 +1,93 @@
 /**
- * Dashboard Controller
+ * Dashboard Controller - Role-Based Dashboard Architecture (Admin vs HOD vs Faculty vs Student)
  */
 let facultyAssignedStudents = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   const user = await checkAuth();
   if (user) {
+    setupRoleViews(user);
     loadDashboardData(user);
   }
 });
 
+function setupRoleViews(user) {
+  const role = user.role;
+  const dept = user.department || "General";
+
+  const titleEl = document.getElementById("dashWelcomeTitle");
+  const subEl = document.getElementById("dashWelcomeSubtitle");
+  const badgeEl = document.getElementById("dashRoleScopeBadge");
+
+  const adminMatrix = document.getElementById("adminDeptMatrixSection");
+  const adminPending = document.getElementById("adminPendingUsersSection");
+  const hodSection = document.getElementById("hodDepartmentSection");
+  const facSection = document.getElementById("facultyMyStudentsSection");
+
+  if (["Administrator", "Admin"].includes(role)) {
+    if (titleEl) titleEl.textContent = "Institute Global Executive Dashboard";
+    if (subEl) subEl.textContent = "Institute-wide analytics, all-department performance, faculty operations, and user approvals.";
+    if (badgeEl) badgeEl.innerHTML = `<i class="bi bi-shield-lock-fill me-1"></i> Global Institute Scope (All Departments)`;
+
+    if (adminMatrix) adminMatrix.classList.remove("d-none");
+    if (adminPending) adminPending.classList.remove("d-none");
+    if (hodSection) hodSection.classList.add("d-none");
+    if (facSection) facSection.classList.add("d-none");
+
+    const l1 = document.getElementById("labelStatStudents");
+    const l2 = document.getElementById("labelStatFaculty");
+    const l3 = document.getElementById("labelStatFees");
+    if (l1) l1.textContent = "Total Students (All Depts)";
+    if (l2) l2.textContent = "Total Faculty (All Depts)";
+    if (l3) l3.textContent = "Total Fees Collected";
+
+  } else if (role === "HOD") {
+    if (titleEl) titleEl.textContent = `${dept} Executive Dashboard`;
+    if (subEl) subEl.textContent = `Strict Department View: Manage ${dept} students, faculty members, academic attendance, and exam pass rates.`;
+    if (badgeEl) badgeEl.innerHTML = `<i class="bi bi-building-fill-check me-1"></i> Department: ${dept}`;
+
+    if (adminMatrix) adminMatrix.classList.add("d-none");
+    if (adminPending) adminPending.classList.add("d-none");
+    if (hodSection) hodSection.classList.remove("d-none");
+    if (facSection) facSection.classList.add("d-none");
+
+    const l1 = document.getElementById("labelStatStudents");
+    const l2 = document.getElementById("labelStatFaculty");
+    const l3 = document.getElementById("labelStatFees");
+    if (l1) l1.textContent = `${dept} Students`;
+    if (l2) l2.textContent = `${dept} Faculty`;
+    if (l3) l3.textContent = `${dept} Fees Collected`;
+
+  } else if (role === "Faculty") {
+    if (titleEl) titleEl.textContent = `Faculty Academic & Mentorship Dashboard`;
+    if (subEl) subEl.textContent = `Manage assigned students, course timetables, daily attendance, and exam submissions for ${dept}.`;
+    if (badgeEl) badgeEl.innerHTML = `<i class="bi bi-person-badge me-1"></i> Faculty: ${user.name || user.username} (${dept})`;
+
+    if (adminMatrix) adminMatrix.classList.add("d-none");
+    if (adminPending) adminPending.classList.add("d-none");
+    if (hodSection) hodSection.classList.add("d-none");
+    if (facSection) facSection.classList.remove("d-none");
+
+    const l1 = document.getElementById("labelStatStudents");
+    const l2 = document.getElementById("labelStatFaculty");
+    if (l1) l1.textContent = `Assigned Students`;
+    if (l2) l2.textContent = `Department Faculty`;
+
+  } else {
+    // Student role
+    if (titleEl) titleEl.textContent = `Student Academic Portal`;
+    if (subEl) subEl.textContent = `Track your attendance, view examination marks, download fee receipts, and read campus notices.`;
+    if (badgeEl) badgeEl.innerHTML = `<i class="bi bi-mortarboard-fill me-1"></i> Student: ${user.name || user.username} (${dept})`;
+
+    if (adminMatrix) adminMatrix.classList.add("d-none");
+    if (adminPending) adminPending.classList.add("d-none");
+    if (hodSection) hodSection.classList.add("d-none");
+    if (facSection) facSection.classList.add("d-none");
+  }
+}
+
 async function loadDashboardData(user) {
-  // Fetch stats from backend
+  // Fetch stats from backend (server strictly handles RBAC)
   const statsRes = await fetchAPI("/api/dashboard/stats");
   if (statsRes.success && statsRes.stats) {
     const s = statsRes.stats;
@@ -19,6 +95,37 @@ async function loadDashboardData(user) {
     if (document.getElementById("statFaculty")) document.getElementById("statFaculty").textContent = s.totalFaculty || 0;
     if (document.getElementById("statFees")) document.getElementById("statFees").textContent = `₹${(s.totalPaidFees || s.paidFees || 0).toLocaleString()}`;
     if (document.getElementById("statNotices")) document.getElementById("statNotices").textContent = s.totalNotices || 0;
+
+    // If Admin: Render Department Matrix & Pending Users
+    if (["Administrator", "Admin"].includes(user.role)) {
+      if (document.getElementById("adminStatHODs")) document.getElementById("adminStatHODs").textContent = s.totalHODs || 0;
+      if (document.getElementById("adminStatDepts")) document.getElementById("adminStatDepts").textContent = s.totalDepartments || 0;
+      if (document.getElementById("adminStatAttendance")) document.getElementById("adminStatAttendance").textContent = `${s.attendancePercentage || 100}%`;
+      if (document.getElementById("adminStatPassRate")) document.getElementById("adminStatPassRate").textContent = `${s.resultPassPercentage || 100}%`;
+      if (document.getElementById("adminStatPendingFees")) document.getElementById("adminStatPendingFees").textContent = `₹${(s.totalPendingFees || 0).toLocaleString()}`;
+      if (document.getElementById("adminStatPendingUsers")) document.getElementById("adminStatPendingUsers").textContent = s.pendingUsers || 0;
+
+      if (s.departmentStats) {
+        renderAdminDeptMatrix(s.departmentStats);
+      }
+      await loadAdminPendingApprovals();
+    }
+
+    // If HOD: Render Year Distribution, Department Faculty, and Recent Students
+    if (user.role === "HOD") {
+      if (document.getElementById("hodStatFirstYear")) document.getElementById("hodStatFirstYear").textContent = `${s.firstYearStudents || 0} Students`;
+      if (document.getElementById("hodStatSecondYear")) document.getElementById("hodStatSecondYear").textContent = `${s.secondYearStudents || 0} Students`;
+      if (document.getElementById("hodStatThirdYear")) document.getElementById("hodStatThirdYear").textContent = `${s.thirdYearStudents || 0} Students`;
+      if (document.getElementById("hodStatPassRate")) document.getElementById("hodStatPassRate").textContent = `${s.resultPassPercentage || 100}%`;
+
+      renderHodDeptFaculty(s.departmentFaculty || []);
+      renderHodRecentStudents(s.recentStudents || []);
+    }
+  }
+
+  // If Faculty: Load My Assigned Students
+  if (user.role === "Faculty" || user.faculty_id) {
+    await loadFacultyMyStudents();
   }
 
   // Fetch recent notices
@@ -35,23 +142,87 @@ async function loadDashboardData(user) {
         </tr>
       `).join("");
     } else {
-      tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No data available.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No notices available.</td></tr>`;
     }
   }
+}
 
-  // Check if Faculty role or HOD role viewing Faculty My Students
-  const facSection = document.getElementById("facultyMyStudentsSection");
-  if (facSection && (user.role === "Faculty" || user.faculty_id)) {
-    facSection.classList.remove("d-none");
-    await loadFacultyMyStudents();
+function renderAdminDeptMatrix(deptStats) {
+  const tbody = document.getElementById("adminDeptMatrixTableBody");
+  if (!tbody) return;
+
+  if (!deptStats || deptStats.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No department records available.</td></tr>`;
+    return;
   }
 
-  // Check if Admin viewing Pending User Approvals
-  const adminPendingSection = document.getElementById("adminPendingUsersSection");
-  if (adminPendingSection && (user.role === "Administrator" || user.role === "Admin")) {
-    adminPendingSection.classList.remove("d-none");
-    await loadAdminPendingApprovals();
+  tbody.innerHTML = deptStats.map(d => `
+    <tr>
+      <td>
+        <div class="fw-bold text-dark">${d.department}</div>
+        <span class="badge bg-light text-muted border">${d.code}</span>
+      </td>
+      <td>
+        <div class="fw-semibold ${d.hod === 'Not Assigned' ? 'text-danger' : 'text-primary'}">
+          <i class="bi bi-person-badge me-1"></i> ${d.hod}
+        </div>
+      </td>
+      <td><span class="badge bg-info text-dark px-2 py-1">${d.faculty} Members</span></td>
+      <td><span class="badge bg-primary px-2 py-1">${d.students} Students</span></td>
+      <td class="fw-bold text-success">₹${(d.paidFees || 0).toLocaleString()}</td>
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          <div class="progress flex-grow-1" style="height: 6px; width: 60px; background-color: #e2e8f0;">
+            <div class="progress-bar bg-success" style="width: ${Math.min(100, d.attendanceRate || 0)}%"></div>
+          </div>
+          <span class="small fw-bold">${d.attendanceRate}%</span>
+        </div>
+      </td>
+      <td>
+        <a href="hod.html?department=${encodeURIComponent(d.department)}" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold">
+          <i class="bi bi-box-arrow-up-right me-1"></i> View Dept
+        </a>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function renderHodDeptFaculty(facultyList) {
+  const tbody = document.getElementById("hodDeptFacultyTableBody");
+  if (!tbody) return;
+
+  if (!facultyList || facultyList.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No faculty assigned to this department yet.</td></tr>`;
+    return;
   }
+
+  tbody.innerHTML = facultyList.map(f => `
+    <tr>
+      <td class="fw-bold small">${f.id}</td>
+      <td class="fw-semibold small">${f.name}</td>
+      <td class="small"><span class="badge bg-light text-dark border">${f.designation || 'Faculty'}</span></td>
+      <td class="small text-muted">${f.mobile || f.email || 'N/A'}</td>
+    </tr>
+  `).join("");
+}
+
+function renderHodRecentStudents(studentsList) {
+  const tbody = document.getElementById("hodRecentStudentsTableBody");
+  if (!tbody) return;
+
+  if (!studentsList || studentsList.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No students registered in this department yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = studentsList.map(s => `
+    <tr>
+      <td class="fw-bold small">${s.id}</td>
+      <td class="fw-semibold small">${s.name}</td>
+      <td class="small"><span class="badge bg-secondary">${s.year || '1st Year'} (${s.semester || 'Sem 1'})</span></td>
+      <td class="small text-muted">${s.email || 'N/A'}</td>
+    </tr>
+  `).join("");
 }
 
 async function loadAdminPendingApprovals() {
@@ -98,6 +269,7 @@ async function approveUserDirect(id, username, name) {
       const s = statsRes.stats;
       if (document.getElementById("statStudents")) document.getElementById("statStudents").textContent = s.totalStudents || 0;
       if (document.getElementById("statFaculty")) document.getElementById("statFaculty").textContent = s.totalFaculty || 0;
+      if (s.departmentStats) renderAdminDeptMatrix(s.departmentStats);
     }
   } else {
     showToast(res.message || "Approval failed", "danger");
@@ -117,7 +289,6 @@ async function rejectUserDirect(id, username, name) {
     showToast(res.message || "Rejection failed", "danger");
   }
 }
-
 
 async function loadFacultyMyStudents() {
   const res = await fetchAPI("/api/students?assigned_only=true");
@@ -178,3 +349,69 @@ function filterFacultyMyStudents() {
     </tr>
   `).join("");
 }
+
+// ----------------------------------------------------
+// Dashboard Password Modal Handlers
+// ----------------------------------------------------
+function openDashboardPasswordModal() {
+  const user = getSession() || {};
+  const userEl = document.getElementById("dashModalUsername");
+  const roleEl = document.getElementById("dashModalRole");
+
+  if (userEl) userEl.textContent = user.username || user.name || "User";
+  if (roleEl) roleEl.textContent = user.role || "Role";
+
+  if (document.getElementById("dashNewPassword")) document.getElementById("dashNewPassword").value = "";
+  if (document.getElementById("dashConfirmPassword")) document.getElementById("dashConfirmPassword").value = "";
+  if (document.getElementById("dashPassStrength")) document.getElementById("dashPassStrength").classList.add("d-none");
+
+  openModal("dashPasswordModal");
+}
+
+async function handleDashboardPasswordSubmit(e) {
+  e.preventDefault();
+  const newPass = (document.getElementById("dashNewPassword")?.value || "").trim();
+  const confirmPass = (document.getElementById("dashConfirmPassword")?.value || "").trim();
+
+  if (newPass.length < 6) {
+    showToast("Password must be at least 6 characters long!", "warning");
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    showToast("Passwords do not match! Please verify and try again.", "danger");
+    return;
+  }
+
+  const submitBtn = document.getElementById("btnSubmitDashPass");
+  const originalHtml = submitBtn ? submitBtn.innerHTML : "";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Updating...';
+  }
+
+  try {
+    const user = getSession() || {};
+    const res = await fetchAPI("/api/auth/profile", {
+      method: "POST",
+      body: JSON.stringify({
+        password: newPass
+      })
+    });
+
+    if (res.success) {
+      closeModal("dashPasswordModal");
+      showToast("Account password updated successfully!", "success");
+    } else {
+      showToast(res.message || "Failed to update password", "danger");
+    }
+  } catch (err) {
+    showToast("Network error updating password", "danger");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalHtml;
+    }
+  }
+}
+

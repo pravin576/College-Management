@@ -365,17 +365,102 @@ def handle_post_dashboard_stats(handler_instance, query_params, body):
             cursor.execute("SELECT COUNT(*) as count FROM users WHERE status = 'Pending'")
             stats["pendingUsers"] = cursor.fetchone()["count"]
 
+            # College-wide Attendance & Results Summary
+            cursor.execute("SELECT COUNT(*) as total_att, SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as pres_att FROM attendance")
+            att_row = cursor.fetchone()
+            tot_att = (att_row['total_att'] if att_row else 0) or 0
+            pres_att = (att_row['pres_att'] if att_row else 0) or 0
+            stats["attendancePercentage"] = round((float(pres_att) / float(tot_att) * 100), 1) if tot_att > 0 else 100.0
+
+            cursor.execute("SELECT COUNT(*) as total_res, SUM(CASE WHEN status = 'Pass' THEN 1 ELSE 0 END) as pass_res FROM results")
+            res_row = cursor.fetchone()
+            tot_res = (res_row['total_res'] if res_row else 0) or 0
+            pass_res = (res_row['pass_res'] if res_row else 0) or 0
+            stats["resultPassPercentage"] = round((float(pass_res) / float(tot_res) * 100), 1) if tot_res > 0 else 100.0
+
+            # Query list of pending users for Admin Quick Action queue
+            cursor.execute("SELECT id, username, name, role, department, created_at, status FROM users WHERE status = 'Pending' ORDER BY created_at DESC LIMIT 10")
+            stats["pendingUsersList"] = [dict(r) for r in cursor.fetchall()]
+
+            # Fetch Department-Wise Performance & Staff Matrix
+            cursor.execute("SELECT id, name, code FROM departments ORDER BY name ASC")
+            dept_rows = cursor.fetchall()
+            dept_stats = []
+            for d in dept_rows:
+                d_name = d["name"]
+                cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (d_name,))
+                s_cnt = cursor.fetchone()["count"]
+                cursor.execute("SELECT COUNT(*) as count FROM faculty WHERE department = %s", (d_name,))
+                f_cnt = cursor.fetchone()["count"]
+                cursor.execute("SELECT name FROM hods WHERE department = %s LIMIT 1", (d_name,))
+                hod_row = cursor.fetchone()
+                hod_name = hod_row["name"] if hod_row else "Not Assigned"
+                cursor.execute("SELECT SUM(paid_fees) as paid, SUM(pending_fees) as pending FROM fees WHERE department = %s", (d_name,))
+                f_row = cursor.fetchone()
+                paid_amt = float(f_row["paid"] or 0) if f_row else 0.0
+                pending_amt = float(f_row["pending"] or 0) if f_row else 0.0
+
+                cursor.execute("SELECT COUNT(*) as total_att, SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as pres_att FROM attendance WHERE department = %s", (d_name,))
+                att_row = cursor.fetchone()
+                tot_att = (att_row['total_att'] if att_row else 0) or 0
+                pres_att = (att_row['pres_att'] if att_row else 0) or 0
+                att_pct = round((float(pres_att) / float(tot_att) * 100), 1) if tot_att > 0 else 100.0
+
+                dept_stats.append({
+                    "department": d_name,
+                    "code": d.get("code") or d_name[:2].upper(),
+                    "students": s_cnt,
+                    "faculty": f_cnt,
+                    "hod": hod_name,
+                    "paidFees": paid_amt,
+                    "pendingFees": pending_amt,
+                    "attendanceRate": att_pct
+                })
+            stats["departmentStats"] = dept_stats
+
         elif role == "HOD":
-            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (user_dept,))
+            stats["isDepartmentView"] = True
+            stats["department"] = user_dept or "Computer Engineering"
+            target_dept = user_dept or "Computer Engineering"
+
+            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s", (target_dept,))
             stats["totalStudents"] = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM faculty WHERE department = %s", (user_dept,))
+            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s AND (year = 'First Year' OR year IS NULL OR year = '')", (target_dept,))
+            stats["firstYearStudents"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s AND year = 'Second Year'", (target_dept,))
+            stats["secondYearStudents"] = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM students WHERE department = %s AND year = 'Third Year'", (target_dept,))
+            stats["thirdYearStudents"] = cursor.fetchone()["count"]
+
+            cursor.execute("SELECT COUNT(*) as count FROM faculty WHERE department = %s", (target_dept,))
             stats["totalFaculty"] = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (user_dept,))
+            stats["totalHODs"] = 1
+            cursor.execute("SELECT COUNT(*) as count FROM notices WHERE department = %s OR department = 'All'", (target_dept,))
             stats["totalNotices"] = cursor.fetchone()["count"]
-            cursor.execute("SELECT SUM(paid_fees) as paid, SUM(pending_fees) as pending FROM fees WHERE department = %s", (user_dept,))
+            cursor.execute("SELECT SUM(paid_fees) as paid, SUM(pending_fees) as pending FROM fees WHERE department = %s", (target_dept,))
             row = cursor.fetchone()
-            stats["totalPaidFees"] = float(row["paid"] or 0)
-            stats["totalPendingFees"] = float(row["pending"] or 0)
+            stats["totalPaidFees"] = float(row["paid"] or 0) if row else 0.0
+            stats["totalPendingFees"] = float(row["pending"] or 0) if row else 0.0
+
+            cursor.execute("SELECT COUNT(*) as total_att, SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as pres_att FROM attendance WHERE department = %s", (target_dept,))
+            att_row = cursor.fetchone()
+            tot_att = (att_row['total_att'] if att_row else 0) or 0
+            pres_att = (att_row['pres_att'] if att_row else 0) or 0
+            stats["attendancePercentage"] = round((float(pres_att) / float(tot_att) * 100), 1) if tot_att > 0 else 100.0
+
+            cursor.execute("SELECT COUNT(*) as total_res, SUM(CASE WHEN r.status = 'Pass' THEN 1 ELSE 0 END) as pass_res FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s", (target_dept,))
+            res_row = cursor.fetchone()
+            tot_res = (res_row['total_res'] if res_row else 0) or 0
+            pass_res = (res_row['pass_res'] if res_row else 0) or 0
+            stats["resultPassPercentage"] = round((float(pass_res) / float(tot_res) * 100), 1) if tot_res > 0 else 100.0
+
+            # List of department faculty
+            cursor.execute("SELECT id, name, designation, email, mobile, experience FROM faculty WHERE department = %s ORDER BY name ASC", (target_dept,))
+            stats["departmentFaculty"] = [dict(r) for r in cursor.fetchall()]
+
+            # Recent department students
+            cursor.execute("SELECT id, name, roll_number, year, semester, email, mobile FROM students WHERE department = %s ORDER BY id DESC LIMIT 5", (target_dept,))
+            stats["recentStudents"] = [dict(r) for r in cursor.fetchall()]
 
         elif role == "Faculty":
             fac_id = faculty_id or ""

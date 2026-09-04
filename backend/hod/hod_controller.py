@@ -161,102 +161,97 @@ def handle_post_hods(handler_instance, query_params, body):
         official_email = email if email else f"hod_{dept[:2].lower()}@college.edu"
         official_contact = contact if contact else "9876543210"
 
-        is_edit = body.get("is_edit", False)
+        is_edit = body.get("is_edit", False) or body.get("reassign", False)
         explicit_fid = (body.get("faculty_id") or body.get("facultyId") or "").strip()
 
         if existing_dept_hod and not is_edit and explicit_fid and explicit_fid != existing_dept_hod.get("faculty_id"):
             return handler_instance._send_json({
                 "success": False,
-                "message": f"An HOD ({existing_dept_hod['name']}) is already assigned to the {dept} department. Please edit or remove the existing HOD first."
+                "message": f"An HOD ({existing_dept_hod['name']}) is already assigned to the {dept} department. Please edit or reassign the existing HOD."
             }, 400)
 
+        is_reassigning = False
         if existing_dept_hod:
-            f_id = existing_dept_hod.get("faculty_id") or f_id
+            prev_fid = existing_dept_hod.get("faculty_id")
+            prev_email = existing_dept_hod.get("email")
+
+            # Check if this is a reassignment to a different person
+            if (prev_fid and prev_fid != f_id) or (prev_email and prev_email != official_email and not prev_fid):
+                is_reassigning = True
+                # Demote/Update previous HOD user account so they lose HOD privileges
+                cursor.execute("SELECT id FROM faculty WHERE id = %s", (prev_fid,))
+                was_faculty = cursor.fetchone()
+                if was_faculty:
+                    cursor.execute("UPDATE users SET role = 'Faculty' WHERE faculty_id = %s AND role = 'HOD'", (prev_fid,))
+                else:
+                    cursor.execute("UPDATE users SET status = 'Inactive' WHERE (faculty_id = %s OR email = %s) AND role = 'HOD'", (prev_fid, prev_email))
+
+            # Update existing HOD record for this department
             cursor.execute(
                 """UPDATE hods 
-                   SET name = %s, qualification = %s, experience = %s, email = %s, contact = %s, status = %s
+                   SET name = %s, qualification = %s, experience = %s, email = %s, contact = %s, faculty_id = %s, status = %s
                    WHERE department = %s""",
-                (name, qual, exp, official_email, official_contact, status_val, dept)
+                (name, qual, exp, official_email, official_contact, f_id, status_val, dept)
             )
-
-            # Update or create linked user account
-            cursor.execute("SELECT id, username FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR (email = %s AND email != '')", (dept, f_id, official_email))
-            existing_user = cursor.fetchone()
-            if existing_user:
-                new_pass = (body.get("password") or "").strip()
-                if new_pass:
-                    hashed = hash_password(new_pass)
-                    cursor.execute(
-                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s, password = %s WHERE id = %s",
-                        (name, official_email, dept, f_id, official_contact, status_val, hashed, existing_user["id"])
-                    )
-                else:
-                    cursor.execute(
-                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
-                        (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
-                    )
-                success_msg = f"HOD leadership updated successfully for {dept}!"
-                cred_payload = None
-            else:
-                plain_pass = body.get("password") or generate_temp_password()
-                hashed = hash_password(plain_pass)
-                cursor.execute(
-                    "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
-                    (username, hashed, "HOD", name, official_email, dept, f_id, official_contact, time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
-                )
-                success_msg = f"HOD assigned successfully for {dept}.\n\nHOD Username: {username}\nTemporary Password: {plain_pass}\n\nThe HOD can now log in directly using these credentials."
-                cred_payload = {
-                    "name": name,
-                    "role": "HOD",
-                    "department": dept,
-                    "username": username,
-                    "facultyId": f_id,
-                    "temporaryPassword": plain_pass,
-                    "loginUrl": "/login.html"
-                }
         else:
-            # Insert new HOD record
+            # Insert new HOD record for this department
             cursor.execute(
                 """INSERT INTO hods (department, name, qualification, experience, email, contact, faculty_id, status)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                 (dept, name, qual, exp, official_email, official_contact, f_id, status_val)
             )
 
-            # Update or create linked user account
-            cursor.execute("SELECT id, username FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR (email = %s AND email != '')", (dept, f_id, official_email))
-            existing_user = cursor.fetchone()
-            if existing_user:
-                new_pass = (body.get("password") or "").strip()
-                if new_pass:
-                    hashed = hash_password(new_pass)
-                    cursor.execute(
-                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s, password = %s WHERE id = %s",
-                        (name, official_email, dept, f_id, official_contact, status_val, hashed, existing_user["id"])
-                    )
-                else:
-                    cursor.execute(
-                        "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s WHERE id = %s",
-                        (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
-                    )
-                success_msg = f"HOD assigned successfully for {dept}!"
-                cred_payload = None
-            else:
-                plain_pass = body.get("password") or generate_temp_password()
-                hashed = hash_password(plain_pass)
+        # Check for user account to link/promote/create
+        cursor.execute(
+            "SELECT id, username, role FROM users WHERE (department = %s AND role = 'HOD') OR faculty_id = %s OR username = %s OR (email = %s AND email != '')",
+            (dept, f_id, username, official_email)
+        )
+        existing_user = cursor.fetchone()
+
+        new_pass = (body.get("password") or "").strip()
+        cred_payload = None
+
+        if existing_user:
+            if new_pass:
+                hashed = hash_password(new_pass)
                 cursor.execute(
-                    "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
-                    (username, hashed, "HOD", name, official_email, dept, f_id, official_contact, time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
+                    "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s, role = 'HOD', password = %s WHERE id = %s",
+                    (name, official_email, dept, f_id, official_contact, status_val, hashed, existing_user["id"])
                 )
-                success_msg = f"HOD assigned successfully for {dept}.\n\nHOD Username: {username}\nTemporary Password: {plain_pass}\n\nThe HOD can now log in directly using these credentials."
+                success_msg = f"HOD assigned successfully for {dept} with updated credentials!"
                 cred_payload = {
                     "name": name,
                     "role": "HOD",
                     "department": dept,
-                    "username": username,
+                    "username": existing_user.get("username") or username,
                     "facultyId": f_id,
-                    "temporaryPassword": plain_pass,
+                    "temporaryPassword": new_pass,
                     "loginUrl": "/login.html"
                 }
+            else:
+                cursor.execute(
+                    "UPDATE users SET name = %s, email = %s, department = %s, faculty_id = %s, mobile = %s, status = %s, role = 'HOD' WHERE id = %s",
+                    (name, official_email, dept, f_id, official_contact, status_val, existing_user["id"])
+                )
+                action_text = "reassigned" if is_reassigning else "updated"
+                success_msg = f"HOD leadership {action_text} successfully for {dept} ({name})!"
+        else:
+            plain_pass = new_pass or generate_temp_password()
+            hashed = hash_password(plain_pass)
+            cursor.execute(
+                "INSERT INTO users (username, password, role, name, email, department, faculty_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)",
+                (username, hashed, "HOD", name, official_email, dept, f_id, official_contact, time.strftime('%Y-%m-%d %H:%M:%S'), status_val, time.strftime('%Y-%m-%d %H:%M:%S'))
+            )
+            success_msg = f"HOD assigned successfully for {dept}.\n\nHOD Username: {username}\nTemporary Password: {plain_pass}\n\nThe HOD can now log in directly using these credentials."
+            cred_payload = {
+                "name": name,
+                "role": "HOD",
+                "department": dept,
+                "username": username,
+                "facultyId": f_id,
+                "temporaryPassword": plain_pass,
+                "loginUrl": "/login.html"
+            }
 
         conn.commit()
         return handler_instance._send_json({

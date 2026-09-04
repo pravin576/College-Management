@@ -591,6 +591,7 @@ body {
 .input-group {
   display: flex;
   width: 100%;
+  position: relative;
 }
 
 .input-group .input-group-text {
@@ -602,8 +603,27 @@ body {
   color: var(--erp-text-muted);
 }
 
-.input-group .form-control {
-  border-radius: 0 6px 6px 0;
+.input-group .form-control:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.input-group .form-control:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.input-group .btn:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid var(--erp-border);
+  background-color: var(--erp-bg-body);
+  color: var(--erp-text-muted);
+}
+
+.input-group .btn:not(:first-child):hover {
+  background-color: var(--erp-border);
+  color: var(--erp-primary);
 }
 
 /* Nav Tabs */

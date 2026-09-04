@@ -63,6 +63,9 @@
 
         <div class="d-flex align-items-center gap-3">
           <button class="erp-icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i class="bi bi-moon-stars"></i></button>
+          <button class="btn btn-sm btn-outline-primary fw-semibold d-flex align-items-center gap-1" onclick="openDashboardPasswordModal()" title="View and Change Account Password">
+            <i class="bi bi-key-fill text-warning"></i> Password
+          </button>
           <div class="d-flex align-items-center gap-2">
             <span class="fw-bold text-dark fs-6" id="topHeaderUser">User</span>
             <span class="badge bg-primary" id="topHeaderRole">Role</span>
@@ -72,53 +75,241 @@
 
       <!-- Dashboard Content -->
       <div class="erp-content">
+        <!-- Top Executive Welcome Banner -->
+        <div class="card mb-4 shadow-sm border-start border-4 border-primary" id="dashWelcomeBanner">
+          <div class="card-body py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <h4 class="fw-bold text-dark mb-1" id="dashWelcomeTitle">Welcome to College ERP Management System</h4>
+              <p class="text-muted small mb-0" id="dashWelcomeSubtitle">Access real-time institutional metrics, academic operations, and administrative controls.</p>
+            </div>
+            <div id="dashRoleScopeBadgeContainer">
+              <span class="badge bg-primary fs-6 px-3 py-2" id="dashRoleScopeBadge"><i class="bi bi-shield-lock me-1"></i> Global Institute View</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Summary Cards Grid -->
         <div class="row g-3 mb-4" id="dashboardStatsRow">
-          <!-- Populated by JavaScript fetch API -->
-          <div class="col-md-3">
+          <!-- Card 1 -->
+          <div class="col-md-3 col-6">
             <div class="card stat-card">
               <div class="stat-icon blue"><i class="bi bi-mortarboard"></i></div>
               <div>
                 <div class="stat-value" id="statStudents">0</div>
-                <div class="stat-label">Total Students</div>
+                <div class="stat-label" id="labelStatStudents">Total Students</div>
               </div>
             </div>
           </div>
-          <div class="col-md-3">
+          <!-- Card 2 -->
+          <div class="col-md-3 col-6">
             <div class="card stat-card">
               <div class="stat-icon green"><i class="bi bi-person-video3"></i></div>
               <div>
                 <div class="stat-value" id="statFaculty">0</div>
-                <div class="stat-label">Total Faculty</div>
+                <div class="stat-label" id="labelStatFaculty">Total Faculty</div>
               </div>
             </div>
           </div>
-          <div class="col-md-3">
+          <!-- Card 3 -->
+          <div class="col-md-3 col-6">
             <div class="card stat-card">
               <div class="stat-icon orange"><i class="bi bi-currency-rupee"></i></div>
               <div>
                 <div class="stat-value" id="statFees">₹0</div>
-                <div class="stat-label">Total Fees Collected</div>
+                <div class="stat-label" id="labelStatFees">Fees Collected</div>
               </div>
             </div>
           </div>
-          <div class="col-md-3">
+          <!-- Card 4 -->
+          <div class="col-md-3 col-6">
             <div class="card stat-card">
               <div class="stat-icon purple"><i class="bi bi-megaphone"></i></div>
               <div>
                 <div class="stat-value" id="statNotices">0</div>
-                <div class="stat-label">Active Notices</div>
+                <div class="stat-label" id="labelStatNotices">Active Notices</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Faculty-wise "My Assigned Students" Section (Rendered for Faculty role) -->
+        <!-- ============================================================== -->
+        <!-- 1. ADMINISTRATOR VIEW: INSTITUTIONAL DEPARTMENT MATRIX -->
+        <!-- ============================================================== -->
+        <div class="card shadow-sm mb-4 d-none" id="adminDeptMatrixSection">
+          <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <h5 class="card-title mb-0 fw-bold text-dark">
+                <i class="bi bi-buildings-fill text-primary me-2"></i> All Departments Performance & Staff Overview
+              </h5>
+              <p class="text-muted small mb-0">Aggregated institute-level metrics across all academic departments</p>
+            </div>
+            <a href="hod.html" class="btn btn-sm btn-outline-primary fw-bold"><i class="bi bi-person-badge-fill me-1"></i> Manage HOD Leadership</a>
+          </div>
+          <!-- Institute-Wide Core Highlights -->
+          <div class="card-body bg-light border-bottom py-3">
+            <div class="row g-3 text-center">
+              <div class="col-md-2 col-4">
+                <div class="p-2 bg-white rounded shadow-sm border-start border-4 border-primary">
+                  <div class="text-muted small fw-semibold">Total HODs</div>
+                  <div class="fs-5 fw-bold text-primary" id="adminStatHODs">0</div>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="p-2 bg-white rounded shadow-sm border-start border-4 border-info">
+                  <div class="text-muted small fw-semibold">Departments</div>
+                  <div class="fs-5 fw-bold text-info" id="adminStatDepts">0</div>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="p-2 bg-white rounded shadow-sm border-start border-4 border-success">
+                  <div class="text-muted small fw-semibold">Attendance Rate</div>
+                  <div class="fs-5 fw-bold text-success" id="adminStatAttendance">100%</div>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="p-2 bg-white rounded shadow-sm border-start border-4 border-primary">
+                  <div class="text-muted small fw-semibold">Pass Rate</div>
+                  <div class="fs-5 fw-bold text-primary" id="adminStatPassRate">100%</div>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="p-2 bg-white rounded shadow-sm border-start border-4 border-danger">
+                  <div class="text-muted small fw-semibold">Pending Fees</div>
+                  <div class="fs-5 fw-bold text-danger" id="adminStatPendingFees">₹0</div>
+                </div>
+              </div>
+              <div class="col-md-2 col-4">
+                <div class="p-2 bg-white rounded shadow-sm border-start border-4 border-warning">
+                  <div class="text-muted small fw-semibold">Pending Users</div>
+                  <div class="fs-5 fw-bold text-warning" id="adminStatPendingUsers">0</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Department</th>
+                    <th>Head of Department (HOD)</th>
+                    <th>Faculty Members</th>
+                    <th>Enrolled Students</th>
+                    <th>Fees Collected</th>
+                    <th>Attendance Rate</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminDeptMatrixTableBody">
+                  <tr><td colspan="7" class="text-center text-muted py-4">Loading department matrix...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- 2. HOD VIEW: DEPARTMENT ACADEMIC METRICS & STAFF DIRECTORY -->
+        <!-- ============================================================== -->
+        <div class="d-none" id="hodDepartmentSection">
+          <!-- Year Distribution Cards -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3 col-6">
+              <div class="card p-3 shadow-sm bg-white border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold">First Year Students</div>
+                <div class="fs-4 fw-bold text-primary" id="hodStatFirstYear">0</div>
+              </div>
+            </div>
+            <div class="col-md-3 col-6">
+              <div class="card p-3 shadow-sm bg-white border-start border-4 border-success">
+                <div class="text-muted small fw-semibold">Second Year Students</div>
+                <div class="fs-4 fw-bold text-success" id="hodStatSecondYear">0</div>
+              </div>
+            </div>
+            <div class="col-md-3 col-6">
+              <div class="card p-3 shadow-sm bg-white border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold">Third Year Students</div>
+                <div class="fs-4 fw-bold text-warning" id="hodStatThirdYear">0</div>
+              </div>
+            </div>
+            <div class="col-md-3 col-6">
+              <div class="card p-3 shadow-sm bg-white border-start border-4 border-info">
+                <div class="text-muted small fw-semibold">Department Pass Rate</div>
+                <div class="fs-4 fw-bold text-info" id="hodStatPassRate">0%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Department Faculty & Recent Students Row -->
+          <div class="row g-4 mb-4">
+            <!-- Department Faculty List -->
+            <div class="col-lg-6">
+              <div class="card shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                  <h6 class="card-title mb-0 fw-bold text-dark">
+                    <i class="bi bi-person-video3 text-primary me-2"></i> Department Faculty Staff
+                  </h6>
+                  <a href="faculty.html" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive" style="max-height: 260px;">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Faculty ID</th>
+                          <th>Name</th>
+                          <th>Designation</th>
+                          <th>Contact</th>
+                        </tr>
+                      </thead>
+                      <tbody id="hodDeptFacultyTableBody">
+                        <tr><td colspan="4" class="text-center text-muted py-3">Loading faculty...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Students in Department -->
+            <div class="col-lg-6">
+              <div class="card shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                  <h6 class="card-title mb-0 fw-bold text-dark">
+                    <i class="bi bi-mortarboard-fill text-primary me-2"></i> Recent Department Students
+                  </h6>
+                  <a href="students.html" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive" style="max-height: 260px;">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Enrollment No</th>
+                          <th>Name</th>
+                          <th>Year / Sem</th>
+                          <th>Email</th>
+                        </tr>
+                      </thead>
+                      <tbody id="hodRecentStudentsTableBody">
+                        <tr><td colspan="4" class="text-center text-muted py-3">Loading students...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- 3. FACULTY VIEW: MY ASSIGNED STUDENTS SECTION -->
+        <!-- ============================================================== -->
         <div class="card shadow-sm mb-4 d-none" id="facultyMyStudentsSection">
           <div class="card-header bg-white py-3">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <h5 class="card-title mb-0 fw-bold text-dark">
-                <i class="bi bi-person-workspace text-primary me-2"></i> My Assigned Students (Faculty Portal)
+                <i class="bi bi-person-workspace text-primary me-2"></i> My Assigned Students (Faculty Mentorship Pool)
               </h5>
               <span class="badge bg-primary fs-6" id="facultyTotalAssignedBadge">0 Students</span>
             </div>
@@ -210,7 +401,9 @@
           </div>
         </div>
 
-        <!-- Admin Pending User Approvals Section -->
+        <!-- ============================================================== -->
+        <!-- 4. ADMIN PENDING USER APPROVALS SECTION -->
+        <!-- ============================================================== -->
         <div class="card shadow-sm mb-4 d-none" id="adminPendingUsersSection">
           <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h5 class="card-title mb-0 fw-bold text-dark">
@@ -245,9 +438,9 @@
         <div class="row g-4">
           <!-- Recent Notices Panel -->
           <div class="col-lg-7">
-            <div class="card shadow-sm">
-              <div class="card-header">
-                <h5 class="card-title"><i class="bi bi-megaphone-fill text-primary me-2"></i> Recent Circulars & Notices</h5>
+            <div class="card shadow-sm h-100">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="bi bi-megaphone-fill text-primary me-2"></i> Recent Circulars & Notices</h5>
                 <a href="notices.html" class="btn btn-sm btn-outline-primary">View All Notices</a>
               </div>
               <div class="card-body p-0">
@@ -272,11 +465,11 @@
 
           <!-- Quick Shortcuts & Info Panel -->
           <div class="col-lg-5">
-            <div class="card shadow-sm mb-4">
+            <div class="card shadow-sm h-100">
               <div class="card-header">
-                <h5 class="card-title"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Quick ERP Actions</h5>
+                <h5 class="card-title mb-0"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Quick ERP Actions</h5>
               </div>
-              <div class="card-body d-flex flex-column gap-2">
+              <div class="card-body d-flex flex-column gap-2 justify-content-center">
                 <a href="attendance.html" class="btn btn-outline-primary w-100 justify-content-start"><i class="bi bi-calendar-check me-2"></i> Mark / View Attendance</a>
                 <a href="results.html" class="btn btn-outline-primary w-100 justify-content-start"><i class="bi bi-journal-text me-2"></i> Exam Results Management</a>
                 <a href="fees.html" class="btn btn-outline-primary w-100 justify-content-start"><i class="bi bi-credit-card me-2"></i> Fee Status & Payment</a>
@@ -288,6 +481,58 @@
 
       </div>
     </main>
+  </div>
+
+  <!-- Dashboard Password Modal -->
+  <div class="modal" id="dashPasswordModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="bi bi-key-fill me-2"></i> Account Password & Security</h5>
+          <button type="button" class="btn-close text-white" onclick="closeModal('dashPasswordModal')">✕</button>
+        </div>
+        <form id="dashPasswordForm" onsubmit="handleDashboardPasswordSubmit(event)">
+          <div class="modal-body">
+            <div class="alert alert-info py-2 small mb-3">
+              <i class="bi bi-person-badge-fill me-1"></i> Account: <strong id="dashModalUsername">User</strong> (<span id="dashModalRole">Role</span>)
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">New Password *</label>
+              <div class="input-group">
+                <input type="password" id="dashNewPassword" class="form-control" placeholder="Enter new password" required minlength="6" oninput="checkPasswordStrength(this.value, 'dashPassStrength')">
+                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('dashNewPassword', this)" title="Show/Hide Password">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              <div id="dashPassStrength" class="password-strength-container d-none mt-2 mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="small text-muted fw-semibold">Password Strength:</span>
+                  <span class="badge bg-danger strength-badge">Weak</span>
+                </div>
+                <div class="progress" style="height: 6px;">
+                  <div class="progress-bar bg-danger strength-bar" role="progressbar" style="width: 25%;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Confirm New Password *</label>
+              <div class="input-group">
+                <input type="password" id="dashConfirmPassword" class="form-control" placeholder="Re-enter new password" required minlength="6">
+                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('dashConfirmPassword', this)" title="Show/Hide Password">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('dashPasswordModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitDashPass">
+              <i class="bi bi-check-circle me-1"></i> Save Password
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <script src="js/script.js"></script>

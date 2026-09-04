@@ -125,8 +125,11 @@ def handle_get_faculty_students(handler_instance, query_params, body):
     user_dept = user.get('department')
     faculty_id = user.get('faculty_id')
 
+    if is_admin(user) or role == "Administrative":
+        return handler_instance._send_json({"success": False, "message": "Forbidden: Faculty-Student Assignment is restricted to HOD and assigned Faculty only"}, 403)
+
     if role == "Student":
-        return handler_instance._send_json({"success": False, "message": "Forbidden"}, 403)
+        return handler_instance._send_json({"success": False, "message": "Forbidden: Students cannot access faculty assignment portal"}, 403)
 
     target_faculty_id = query_params.get("faculty_id", [faculty_id if role == "Faculty" else None])[0]
     if not target_faculty_id:
@@ -496,13 +499,14 @@ def handle_post_students_bulk(handler_instance, query_params, body):
 register_route('POST', '/api/students/bulk', handle_post_students_bulk)
 
 # ----------------------------------------------------
-# Assign Students to Faculty
+# Assign Students to Faculty (Strictly HOD Only)
 # ----------------------------------------------------
 def handle_post_faculty_students_assign(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    if not user or not (is_admin(user) or is_hod(user)):
-        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Admin and HOD can assign students"}, 403)
+    if not user or not is_hod(user):
+        return handler_instance._send_json({"success": False, "message": "Forbidden: Only Head of Department (HOD) can assign students to faculty"}, 403)
 
+    user_dept = user.get('department')
     fac_id = (body.get("faculty_id") or body.get("facultyId") or "").strip()
     stu_ids = body.get("student_ids") or body.get("studentIds") or []
 
@@ -515,11 +519,18 @@ def handle_post_faculty_students_assign(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        if is_hod(user):
-            cursor.execute("SELECT department FROM faculty WHERE id = %s", (fac_id,))
-            fac_row = cursor.fetchone()
-            if not fac_row or fac_row["department"] != user.get("department"):
-                return handler_instance._send_json({"success": False, "message": "HOD can only assign students to faculty in their department"}, 403)
+        # Validate faculty belongs to HOD's department
+        cursor.execute("SELECT department FROM faculty WHERE id = %s", (fac_id,))
+        fac_row = cursor.fetchone()
+        if not fac_row or fac_row["department"] != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: Faculty '{fac_id}' does not belong to your department ({user_dept})"}, 403)
+
+        # Validate that all students belong to HOD's department
+        for sid in stu_ids:
+            cursor.execute("SELECT department FROM students WHERE id = %s", (sid,))
+            stu_row = cursor.fetchone()
+            if not stu_row or stu_row["department"] != user_dept:
+                return handler_instance._send_json({"success": False, "message": f"Forbidden: Student '{sid}' does not belong to your department ({user_dept})"}, 403)
 
         assigned_cnt = 0
         for sid in stu_ids:
@@ -539,9 +550,10 @@ register_route('POST', '/api/faculty-students/assign', handle_post_faculty_stude
 
 def handle_post_faculty_students_remove(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    if not user or not (is_admin(user) or is_hod(user)):
-        return handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
+    if not user or not is_hod(user):
+        return handler_instance._send_json({"success": False, "message": "Forbidden: Only Head of Department (HOD) can remove student assignments"}, 403)
 
+    user_dept = user.get('department')
     fac_id = (body.get("faculty_id") or body.get("facultyId") or "").strip()
     stu_id = body.get("student_id") or body.get("studentId")
     stu_ids = body.get("student_ids") or body.get("studentIds") or ([stu_id] if stu_id else [])
@@ -555,13 +567,18 @@ def handle_post_faculty_students_remove(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        if is_hod(user):
-            cursor.execute("SELECT department FROM faculty WHERE id = %s", (fac_id,))
-            fac_row = cursor.fetchone()
-            if not fac_row or fac_row["department"] != user.get("department"):
-                return handler_instance._send_json({"success": False, "message": "HOD can only manage assignments in their department"}, 403)
+        # Validate faculty belongs to HOD's department
+        cursor.execute("SELECT department FROM faculty WHERE id = %s", (fac_id,))
+        fac_row = cursor.fetchone()
+        if not fac_row or fac_row["department"] != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: Faculty '{fac_id}' does not belong to your department ({user_dept})"}, 403)
 
         for sid in stu_ids:
+            cursor.execute("SELECT department FROM students WHERE id = %s", (sid,))
+            stu_row = cursor.fetchone()
+            if not stu_row or stu_row["department"] != user_dept:
+                return handler_instance._send_json({"success": False, "message": f"Forbidden: Student '{sid}' does not belong to your department ({user_dept})"}, 403)
+
             cursor.execute("DELETE FROM faculty_students WHERE faculty_id = %s AND student_id = %s", (fac_id, sid))
 
         conn.commit()

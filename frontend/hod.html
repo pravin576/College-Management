@@ -58,7 +58,7 @@
 
         <div class="d-flex align-items-center gap-2">
           <button class="erp-icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i class="bi bi-moon-stars"></i></button>
-          <button class="btn btn-sm btn-primary fw-bold action-add-hod" onclick="openModal('addHodModal')">
+          <button class="btn btn-sm btn-primary fw-bold action-add-hod" onclick="openAssignHodModal()">
             <i class="bi bi-plus-lg me-1"></i> Assign New HOD
           </button>
         </div>
@@ -213,8 +213,8 @@
           </div>
         </div>
 
-        <!-- Faculty-wise Student Assignment Card -->
-        <div class="card shadow-sm mb-4">
+        <!-- Faculty-wise Student Assignment Card (Strictly HOD Only) -->
+        <div class="card shadow-sm mb-4 role-hod-only section-faculty-student-assignment" id="facultyStudentAssignmentCard">
           <div class="card-header bg-white py-3">
             <h5 class="card-title mb-0 fw-bold text-dark">
               <i class="bi bi-person-check-fill text-primary me-2"></i> Faculty-wise Student Management & Assignment
@@ -334,20 +334,24 @@
     </main>
   </div>
 
-  <!-- Add/Edit HOD Modal -->
+  <!-- Add/Edit/Assign HOD Modal -->
   <div class="modal" id="addHodModal">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title"><i class="bi bi-person-badge me-2"></i> Assign Head of Department</h5>
+          <h5 class="modal-title" id="addHodModalTitle"><i class="bi bi-person-badge me-2"></i> Assign Head of Department (HOD)</h5>
           <button type="button" class="btn-close text-white" onclick="closeModal('addHodModal')">✕</button>
         </div>
         <form id="hodModalForm" onsubmit="saveHodForm(event)">
           <div class="modal-body">
+            <input type="hidden" id="modalHodFacultyId" value="">
+            <div class="alert alert-info py-2 small mb-3">
+              <i class="bi bi-info-circle-fill me-1"></i> You can either promote an existing department faculty member or register a new HOD. If an HOD is already assigned to this department, saving will reassign the role seamlessly.
+            </div>
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label">Department *</label>
-                <select id="modalHodDepartment" class="form-select" required>
+                <label class="form-label fw-semibold">Select Department *</label>
+                <select id="modalHodDepartment" class="form-select border-primary fw-bold" required onchange="onModalDeptChange(this.value)">
                   <option value="Computer Engineering">Computer Engineering</option>
                   <option value="Information Technology">Information Technology</option>
                   <option value="Mechanical Engineering">Mechanical Engineering</option>
@@ -359,34 +363,47 @@
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label">HOD Full Name *</label>
+                <label class="form-label fw-semibold">Promote Existing Faculty <span class="text-muted small">(Optional)</span></label>
+                <select id="modalHodFacultySelect" class="form-select" onchange="onModalFacultySelect(this.value)">
+                  <option value="">-- Or Create New / External HOD --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">HOD Full Name *</label>
                 <input type="text" id="modalHodName" class="form-control" required placeholder="e.g. Dr. Rajesh Sharma">
               </div>
               <div class="col-md-6">
-                <label class="form-label">Qualification *</label>
+                <label class="form-label fw-semibold">Official Email ID *</label>
+                <input type="email" id="modalHodEmail" class="form-control" required placeholder="hod.comp@college.edu">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Qualification *</label>
                 <input type="text" id="modalHodQualification" class="form-control" required placeholder="e.g. Ph.D. in Computer Engineering">
               </div>
               <div class="col-md-6">
-                <label class="form-label">Experience *</label>
+                <label class="form-label fw-semibold">Experience *</label>
                 <input type="text" id="modalHodExperience" class="form-control" required placeholder="e.g. 12 Years">
               </div>
               <div class="col-md-6">
-                <label class="form-label">Official Email *</label>
-                <input type="email" id="modalHodEmail" class="form-control" required placeholder="hod.cs@college.edu">
+                <label class="form-label fw-semibold">Contact Phone Number *</label>
+                <input type="tel" id="modalHodContact" class="form-control" required placeholder="e.g. 9876543210" pattern="[0-9]{10}">
               </div>
               <div class="col-md-6">
-                <label class="form-label">Contact Phone *</label>
-                <input type="text" id="modalHodContact" class="form-control" required placeholder="+91 9876543210">
-              </div>
-              <div class="col-md-12">
-                <label class="form-label">Account Password <span class="text-muted small">(Optional - leave blank to auto-generate temporary password)</span></label>
-                <input type="password" id="modalHodPassword" class="form-control" placeholder="Set custom login password">
+                <label class="form-label fw-semibold">Custom Login Password <span class="text-muted small">(Optional)</span></label>
+                <div class="input-group">
+                  <input type="password" id="modalHodPassword" class="form-control" placeholder="Leave blank to auto-generate password">
+                  <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('modalHodPassword', this)" title="Show/Hide Password">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer bg-light">
             <button type="button" class="btn btn-secondary" onclick="closeModal('addHodModal')">Cancel</button>
-            <button type="submit" class="btn btn-primary fw-bold">Save HOD Record</button>
+            <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitHodModal">
+              <i class="bi bi-check-circle me-1"></i> Save & Assign HOD
+            </button>
           </div>
         </form>
       </div>

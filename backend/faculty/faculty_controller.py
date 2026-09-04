@@ -54,12 +54,18 @@ register_route('GET', '/api/faculty', handle_get_faculty)
 
 def handle_post_faculty(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    if not user or not (is_admin(user) or is_hod(user)):
-        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Admin and HOD can manage faculty"}, 403)
+    if not user or not is_hod(user):
+        if is_admin(user) or (user and user.get('role') in ['Administrator', 'Admin', 'Principal']):
+            return handler_instance._send_json({"success": False, "message": "Permission denied: Administrative/Principal role is monitoring-only. Faculty management is handled by the Head of Department (HOD)."}, 403)
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Head of Department (HOD) can manage faculty records"}, 403)
 
     user_dept = user.get('department')
+    requested_dept = (body.get("department") or "").strip()
+    if requested_dept and requested_dept != user_dept:
+        return handler_instance._send_json({"success": False, "message": f"Forbidden: HOD can only manage faculty for their assigned department ({user_dept})."}, 403)
+    dept = user_dept
+
     f_id = (body.get("id") or body.get("facultyId") or f"FAC_{int(time.time()) % 100000}").strip()
-    dept = user_dept if is_hod(user) else (body.get("department") or "Computer Engineering").strip()
     mobile = (body.get("mobile", "") or body.get("phone", "")).strip()
     email = body.get("email", "").strip()
     name = body.get("name", "").strip()
@@ -75,8 +81,11 @@ def handle_post_faculty(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True, buffered=True)
 
     try:
-        cursor.execute("SELECT id FROM faculty WHERE id = %s", (f_id,))
+        cursor.execute("SELECT id, department FROM faculty WHERE id = %s", (f_id,))
         existing_fac = cursor.fetchone()
+
+        if existing_fac and existing_fac.get("department") != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: Cannot edit faculty belonging to another department ({existing_fac.get('department')})."}, 403)
 
         if existing_fac or is_edit:
             cursor.execute(
@@ -167,9 +176,12 @@ def handle_delete_faculty(handler_instance, query_params, body):
     if not user:
         return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
 
-    if not is_admin(user):
-        return handler_instance._send_json({"success": False, "message": "Forbidden: Only Administrator can delete faculty members"}, 403)
+    if not is_hod(user):
+        if is_admin(user) or (user and user.get('role') in ['Administrator', 'Admin', 'Principal']):
+            return handler_instance._send_json({"success": False, "message": "Permission denied: Administrative/Principal role is monitoring-only. Faculty deletion is managed by the Head of Department (HOD)."}, 403)
+        return handler_instance._send_json({"success": False, "message": "Forbidden: Only Head of Department (HOD) can delete faculty members"}, 403)
 
+    user_dept = user.get('department')
     item_id = query_params.get("id", [None])[0] or body.get("id")
     if not item_id:
         return handler_instance._send_json({"success": False, "message": "Faculty ID required"}, 400)
@@ -180,10 +192,13 @@ def handle_delete_faculty(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT id FROM faculty WHERE id = %s", (item_id,))
+        cursor.execute("SELECT id, department FROM faculty WHERE id = %s", (item_id,))
         fac = cursor.fetchone()
         if not fac:
             return handler_instance._send_json({"success": False, "message": "Faculty record not found"}, 404)
+
+        if fac.get("department") != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: Cannot delete faculty member belonging to another department ({fac.get('department')})"}, 403)
 
         cursor.execute("DELETE FROM faculty_students WHERE faculty_id = %s", (item_id,))
         cursor.execute("DELETE FROM users WHERE faculty_id = %s", (item_id,))

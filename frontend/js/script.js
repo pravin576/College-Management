@@ -235,8 +235,9 @@ function applyRoleVisibility(user) {
     if (linkStudents) linkStudents.innerHTML = `<i class="bi bi-mortarboard-fill"></i> Assigned Students`;
 
   } else if (role === "HOD") {
-    document.querySelectorAll(".action-add-hod, .action-edit-hod, .nav-admin-only, .role-admin-only").forEach(el => el.style.display = "none");
-    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard").forEach(el => el.style.display = "");
+    // HOD: Daily department-level operations, student & faculty management for own dept, faculty-student assignment
+    document.querySelectorAll(".action-add-hod, .action-edit-hod, .nav-admin-only, .role-admin-only, .section-database-controls, .admin-only-control").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-add-student, .action-add-faculty, .action-add-attendance, .action-add-result, .action-add-timetable, .action-assign-student, .action-remove-assignment").forEach(el => el.style.display = "");
     const payFeeBtn = document.getElementById("btnPayFee");
     if (payFeeBtn) payFeeBtn.style.display = "none";
 
@@ -252,10 +253,10 @@ function applyRoleVisibility(user) {
       });
     }
 
-  } else if (["Administrator", "Admin"].includes(role)) {
-    // Admin: Full college-wide management, but NO faculty-student assignment
-    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-assign-student, .action-remove-assignment, .action-assign-faculty-students").forEach(el => el.style.display = "none");
-    document.querySelectorAll(".nav-admin-only, .role-admin-only, .action-add-hod").forEach(el => el.style.display = "");
+  } else if (["Administrator", "Admin", "Principal"].includes(role)) {
+    // Administrative / Principal: Institutional monitoring & authority, HOD management, reports, notices, database controls. NO daily student/faculty data-entry or faculty-student assignment.
+    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-assign-student, .action-remove-assignment, .action-assign-faculty-students, .action-add-student, .action-add-faculty, .action-add-attendance, .action-add-result, .action-add-timetable").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".nav-admin-only, .role-admin-only, .action-add-hod, .action-edit-hod, .action-publish-notice, .section-database-controls, .admin-only-control").forEach(el => el.style.display = "");
     const payFeeBtn = document.getElementById("btnPayFee");
     if (payFeeBtn) payFeeBtn.style.display = "none";
 

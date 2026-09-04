@@ -24,10 +24,18 @@ def parse_xlsx_bytes(file_bytes):
             tree = ET.parse(f)
             root = tree.getroot()
             
-            for elem in root.iter():
-                if elem.tag.endswith('row'):
+            sheet_data = None
+            for child in root:
+                if child.tag.endswith('sheetData'):
+                    sheet_data = child
+                    break
+            if sheet_data is None:
+                sheet_data = root.find('.//{*}sheetData') or root
+                
+            for row_elem in sheet_data:
+                if row_elem.tag.endswith('row'):
                     row_vals = []
-                    for c in elem:
+                    for c in row_elem:
                         if c.tag.endswith('c'):
                             t = c.get('t')
                             val = ''
@@ -56,21 +64,23 @@ def build_xlsx_bytes(headers, sample_rows):
                 string_map[s_val] = len(strings)
                 strings.append(s_val)
 
-    sst_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="{0}" uniqueCount="{0}">'.format(len(strings))
+    sst_parts = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="{0}" uniqueCount="{0}">'.format(len(strings))]
     for s in strings:
         escaped_s = s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
-        sst_xml += f'<si><t>{escaped_s}</t></si>'
-    sst_xml += '</sst>'
+        sst_parts.append(f'<si><t>{escaped_s}</t></si>')
+    sst_parts.append('</sst>')
+    sst_xml = ''.join(sst_parts)
 
-    sheet_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+    sheet_parts = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>']
     for r_idx, row in enumerate(all_rows, start=1):
-        sheet_xml += f'<row r="{r_idx}">'
+        sheet_parts.append(f'<row r="{r_idx}">')
         for c_idx, val in enumerate(row, start=1):
             col_letter = chr(64 + c_idx) if c_idx <= 26 else 'A' + chr(64 + c_idx - 26)
             s_idx = string_map[str(val)]
-            sheet_xml += f'<c r="{col_letter}{r_idx}" t="s"><v>{s_idx}</v></c>'
-        sheet_xml += '</row>'
-    sheet_xml += '</sheetData></worksheet>'
+            sheet_parts.append(f'<c r="{col_letter}{r_idx}" t="s"><v>{s_idx}</v></c>')
+        sheet_parts.append('</row>')
+    sheet_parts.append('</sheetData></worksheet>')
+    sheet_xml = ''.join(sheet_parts)
 
     content_types = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>'
     dot_rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'
@@ -122,3 +132,24 @@ def create_results_template_xlsx():
         ["STU1002", "Priya Shinde", "Computer Engineering", "Semester 3", "Software Engineering", "22", "45"]
     ]
     return build_xlsx_bytes(headers, sample_rows)
+
+def create_credentials_xlsx(credentials_list):
+    headers = [
+        "Enrollment Number", "Student Name", "Department", "Year", "Semester",
+        "Division", "Username", "Temporary Password", "Account Status"
+    ]
+    rows = []
+    for c in credentials_list:
+        rows.append([
+            str(c.get("enrollmentNumber") or c.get("username") or c.get("id") or ""),
+            str(c.get("name") or ""),
+            str(c.get("department") or ""),
+            str(c.get("year") or "First Year"),
+            str(c.get("semester") or "Semester 1"),
+            str(c.get("division") or "A"),
+            str(c.get("username") or c.get("enrollmentNumber") or ""),
+            str(c.get("temporaryPassword") or ""),
+            str(c.get("status") or "Created")
+        ])
+    return build_xlsx_bytes(headers, rows)
+

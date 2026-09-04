@@ -68,6 +68,7 @@ function renderStudentsTable(students) {
         <button class="btn btn-sm btn-outline-dark me-1" onclick="viewStudentIdCard('${s.id}')" title="ID Card"><i class="bi bi-card-heading"></i></button>
         ${canManageStudent ? `
           <button class="btn btn-sm btn-outline-primary me-1" onclick="editStudent('${s.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-warning me-1" onclick="resetStudentPassword('${s.id}')" title="Reset Temporary Password"><i class="bi bi-key-fill"></i></button>
           <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${s.id}')" title="Delete"><i class="bi bi-trash"></i></button>
         ` : ''}
       </td>
@@ -345,8 +346,28 @@ async function saveBulkStudents(e) {
   }
 }
 
+// Student Password Reset Controller
+async function resetStudentPassword(id) {
+  if (!confirm(`Are you sure you want to reset the login password for student '${id}'? A new temporary password will be generated.`)) {
+    return;
+  }
+
+  const res = await fetchAPI("/api/students/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ id: id })
+  });
+
+  if (res.success && res.credentials) {
+    showCredentialModal(res.credentials);
+    showToast(`Password reset successfully for student '${id}'`, "success");
+  } else {
+    showToast(res.message || "Failed to reset password", "danger");
+  }
+}
+
 // Excel Student Import Controller
 let currentStudentExcelErrors = [];
+let currentStudentCredentials = [];
 
 async function submitStudentExcelImport(e) {
   e.preventDefault();
@@ -399,6 +420,36 @@ async function submitStudentExcelImport(e) {
       if (document.getElementById("resStuDup")) document.getElementById("resStuDup").textContent = res.duplicateCount || 0;
       if (document.getElementById("resStuFailed")) document.getElementById("resStuFailed").textContent = res.failedCount || 0;
 
+      // Handle Generated Credentials Report
+      currentStudentCredentials = res.credentials || [];
+      const credSection = document.getElementById("studentExcelCredSection");
+      const credTbody = document.getElementById("studentExcelCredTableBody");
+      const credCount = document.getElementById("resStuCredCount");
+
+      if (credCount) credCount.textContent = currentStudentCredentials.length;
+
+      if (currentStudentCredentials.length > 0) {
+        if (credSection) credSection.classList.remove("d-none");
+        if (credTbody) {
+          credTbody.innerHTML = currentStudentCredentials.map(c => `
+            <tr>
+              <td class="fw-bold text-dark">${c.enrollmentNumber || c.username}</td>
+              <td class="fw-semibold">${c.name}</td>
+              <td><span class="badge bg-secondary">${c.department}</span></td>
+              <td>${c.year || 'First Year'}</td>
+              <td>${c.semester || 'Semester 1'}</td>
+              <td>${c.division || 'A'}</td>
+              <td><code>${c.username}</code></td>
+              <td><code class="text-danger fw-bold">${c.temporaryPassword}</code></td>
+              <td><span class="badge bg-success">${c.status || 'Created'}</span></td>
+            </tr>
+          `).join("");
+        }
+      } else {
+        if (credSection) credSection.classList.add("d-none");
+      }
+
+      // Handle Failed / Duplicate Errors Report
       currentStudentExcelErrors = res.errors || [];
       const errSection = document.getElementById("studentExcelErrorSection");
       const errTbody = document.getElementById("studentExcelErrorTableBody");
@@ -425,6 +476,67 @@ async function submitStudentExcelImport(e) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+async function downloadStudentCredentialsExcel() {
+  if (!currentStudentCredentials || currentStudentCredentials.length === 0) {
+    showToast("No generated credentials available to export!", "warning");
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch("/api/students/export-credentials", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
+      },
+      body: JSON.stringify({ credentials: currentStudentCredentials })
+    });
+
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const disposition = response.headers.get("Content-Disposition") || "";
+      let filename = `student_login_credentials_${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15)}.xlsx`;
+      if (disposition.includes("filename=")) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast("Credentials downloaded successfully!", "success");
+    } else {
+      // Fallback to CSV format
+      downloadStudentCredentialsCsvFallback();
+    }
+  } catch (err) {
+    console.warn("Server XLSX export fallback triggered:", err);
+    downloadStudentCredentialsCsvFallback();
+  }
+}
+
+function downloadStudentCredentialsCsvFallback() {
+  let csv = "Enrollment Number,Student Name,Department,Year,Semester,Division,Username,Temporary Password,Account Status\n";
+  currentStudentCredentials.forEach(c => {
+    csv += `"${c.enrollmentNumber}","${c.name}","${c.department}","${c.year || 'First Year'}","${c.semester || 'Semester 1'}","${c.division || 'A'}","${c.username}","${c.temporaryPassword}","${c.status || 'Created'}"\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `student_login_credentials_${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  showToast("Credentials exported in CSV format!", "success");
 }
 
 function downloadStudentErrorReport() {

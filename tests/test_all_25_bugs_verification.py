@@ -52,6 +52,13 @@ class TestAll25Bugs(unittest.TestCase):
             "role": "Administrator",
             "department": "Administration"
         }
+        cls.hod_token = "hod-test-token-all25"
+        SESSIONS[cls.hod_token] = {
+            "id": 2,
+            "username": "hod_tester",
+            "role": "HOD",
+            "department": "Computer Engineering"
+        }
 
     def _req(self, method, path, body=None, token=None):
         headers = {}
@@ -123,7 +130,7 @@ class TestAll25Bugs(unittest.TestCase):
             "email": f"{fac_id.lower()}@college.edu",
             "mobile": "9876500001",
             "experience": "5 Years"
-        })
+        }, token=self.hod_token)
         self.assertEqual(status, 200)
 
         # Assign student to this faculty in faculty_students
@@ -140,7 +147,7 @@ class TestAll25Bugs(unittest.TestCase):
             "mobile": "9876500002",
             "experience": "6 Years",
             "is_edit": True
-        })
+        }, token=self.hod_token)
         self.assertEqual(status, 200)
 
         # Verify assignment still exists
@@ -148,7 +155,7 @@ class TestAll25Bugs(unittest.TestCase):
         self.assertIsNotNone(cur.fetchone(), "Faculty student assignment was deleted during faculty update!")
 
         # Verify faculty listing has exactly 1 row for this faculty ID
-        status, list_res = self._req("GET", "/api/faculty?department=Computer Engineering")
+        status, list_res = self._req("GET", "/api/faculty?department=Computer Engineering", token=self.hod_token)
         matching = [f for f in list_res.get("faculty", []) if f["id"] == fac_id]
         self.assertEqual(len(matching), 1)
 
@@ -184,7 +191,7 @@ class TestAll25Bugs(unittest.TestCase):
             "year": "First Year",
             "semester": "Semester 1",
             "division": "A"
-        })
+        }, token=self.hod_token)
         self.assertEqual(status, 200, f"Failed creating student: {res}")
 
         # 2. Insert related attendance, results, fees, and assignments
@@ -209,7 +216,7 @@ class TestAll25Bugs(unittest.TestCase):
             "semester": "Semester 1",
             "division": "A",
             "is_edit": True
-        })
+        }, token=self.hod_token)
         self.assertEqual(status, 200)
 
         # 4. Verify that attendance, results, fees, and faculty assignments ALL still exist!

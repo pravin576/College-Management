@@ -33,7 +33,7 @@ function renderFacultyTable(facultyList) {
   }
 
   const user = getSession() || {};
-  const canEdit = ["Administrator", "Admin", "HOD"].includes(user.role);
+  const canEdit = user.role === "HOD";
 
   tbody.innerHTML = facultyList.map(f => {
     const isPending = (f.status || "").toLowerCase() === "pending";

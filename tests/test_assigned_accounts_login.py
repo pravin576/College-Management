@@ -51,6 +51,20 @@ class TestAssignedAccountsLogin(unittest.TestCase):
             "role": "Administrator",
             "department": "Administration"
         }
+        cls.hod_token = "hod-session-token-test-assign"
+        SESSIONS[cls.hod_token] = {
+            "id": 2,
+            "username": "hod_user_co",
+            "role": "HOD",
+            "department": "Computer Engineering"
+        }
+        cls.hod_it_token = "hod-it-session-token-test-assign"
+        SESSIONS[cls.hod_it_token] = {
+            "id": 3,
+            "username": "hod_user_it",
+            "role": "HOD",
+            "department": "Information Technology"
+        }
 
     def _req(self, method, path, body=None, token=None):
         headers = {}
@@ -67,7 +81,7 @@ class TestAssignedAccountsLogin(unittest.TestCase):
         stu_email = f"{stu_id.lower()}@college.edu"
         stu_pass = "StudentPass@123"
 
-        # Admin creates student with custom password
+        # HOD creates student with custom password
         status, res = self._req("POST", "/api/students", {
             "id": stu_id,
             "rollNumber": roll_no,
@@ -81,7 +95,7 @@ class TestAssignedAccountsLogin(unittest.TestCase):
             "semester": "Semester 1",
             "division": "A",
             "password": stu_pass
-        })
+        }, token=self.hod_token)
         self.assertEqual(status, 200, f"Student creation failed: {res}")
 
         # 1. Login with Enrollment Number
@@ -106,7 +120,7 @@ class TestAssignedAccountsLogin(unittest.TestCase):
         }, token="")
         self.assertEqual(status, 200, f"Login with Roll Number failed: {login_res3}")
 
-        # 4. Admin edits student with a NEW password
+        # 4. HOD edits student with a NEW password
         new_pass = "NewStudentPass@456"
         status, edit_res = self._req("POST", "/api/students", {
             "id": stu_id,
@@ -117,7 +131,7 @@ class TestAssignedAccountsLogin(unittest.TestCase):
             "department": "Computer Engineering",
             "password": new_pass,
             "is_edit": True
-        })
+        }, token=self.hod_token)
         self.assertEqual(status, 200)
 
         # Login with NEW password
@@ -141,7 +155,7 @@ class TestAssignedAccountsLogin(unittest.TestCase):
         fac_email = f"{fac_id.lower()}@college.edu"
         fac_pass = "FacultyPass@123"
 
-        # Admin creates faculty
+        # HOD creates faculty
         status, res = self._req("POST", "/api/faculty", {
             "id": fac_id,
             "name": "Dr. Assigned Faculty",
@@ -152,7 +166,7 @@ class TestAssignedAccountsLogin(unittest.TestCase):
             "experience": "8 Years",
             "status": "Active",
             "password": fac_pass
-        })
+        }, token=self.hod_it_token)
         self.assertEqual(status, 200, f"Faculty creation failed: {res}")
 
         # 1. Login with Faculty ID

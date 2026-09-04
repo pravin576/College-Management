@@ -8,7 +8,7 @@ from config.database import get_db_connection
 from router import register_route
 from auth.permissions import get_current_user, is_admin, is_hod, is_faculty, is_student, is_student_assigned_to_faculty
 from auth.utils import hash_password, generate_temp_password
-from core.excel_utils import create_student_template_xlsx, parse_xlsx_bytes
+from core.excel_utils import create_student_template_xlsx, parse_xlsx_bytes, create_credentials_xlsx
 
 # ----------------------------------------------------
 # Student Excel Format Template Download
@@ -272,22 +272,32 @@ def handle_get_hod_student_summary(handler_instance, query_params, body):
 register_route('GET', '/api/hod/student-summary', handle_get_hod_student_summary)
 
 # ----------------------------------------------------
-# Add / Update Student (Admin / HOD Only)
+# ----------------------------------------------------
+# Add / Update Student (Admin or HOD)
 # ----------------------------------------------------
 def handle_post_students(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
     if not user or not (is_admin(user) or is_hod(user)):
-        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Admin and HOD can manage student records"}, 403)
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Administrator or Head of Department (HOD) can manage student records"}, 403)
 
-    role = user.get('role')
     user_dept = user.get('department')
+    requested_dept = (body.get("department") or "").strip()
+    
+    if is_hod(user):
+        if requested_dept and requested_dept != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: HOD can only manage students for their assigned department ({user_dept})."}, 403)
+        dept = user_dept
+    else:
+        dept = requested_dept if requested_dept else "Computer Engineering"
 
     s_id = (body.get("id") or body.get("studentId") or body.get("enrollmentNumber") or body.get("enrollment_number") or "").strip()
     roll_number = (body.get("rollNumber") or body.get("roll_number") or "").strip()
-    dept = user_dept if is_hod(user) else (body.get("department") or "Computer Engineering").strip()
     mobile = (body.get("mobile", "") or body.get("phone", "")).strip()
     email = body.get("email", "").strip()
     name = body.get("name", "").strip()
+    year = body.get("year", "First Year")
+    semester = body.get("semester", "Semester 1")
+    division = body.get("division", "A")
     is_edit = body.get("is_edit", False)
 
     if not s_id or not roll_number or not name:
@@ -299,7 +309,13 @@ def handle_post_students(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        if not is_edit:
+        cursor.execute("SELECT id, department FROM students WHERE id = %s", (s_id,))
+        existing_stu = cursor.fetchone()
+
+        if is_hod(user) and existing_stu and existing_stu.get("department") != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: Cannot edit student belonging to another department ({existing_stu.get('department')})."}, 403)
+
+        if not is_edit and not existing_stu:
             cursor.execute("SELECT id FROM students WHERE id = %s", (s_id,))
             if cursor.fetchone():
                 return handler_instance._send_json({"success": False, "message": f"This Enrollment Number '{s_id}' is already registered. Please use a unique Enrollment Number."}, 400)
@@ -311,9 +327,6 @@ def handle_post_students(handler_instance, query_params, body):
             cursor.execute("SELECT id FROM students WHERE roll_number = %s AND department = %s", (roll_number, dept))
             if cursor.fetchone():
                 return handler_instance._send_json({"success": False, "message": f"Duplicate Error: Roll Number '{roll_number}' already exists in department '{dept}'!"}, 400)
-
-        cursor.execute("SELECT id FROM students WHERE id = %s", (s_id,))
-        existing_stu = cursor.fetchone()
 
         if existing_stu or is_edit:
             cursor.execute(
@@ -329,9 +342,9 @@ def handle_post_students(handler_instance, query_params, body):
                     body.get("gender", "Male"),
                     body.get("dob", "2005-01-01"),
                     dept,
-                    body.get("year", "First Year"),
-                    body.get("semester", "Semester 1"),
-                    body.get("division", "A"),
+                    year,
+                    semester,
+                    division,
                     body.get("admissionYear", "2026"),
                     body.get("address", "College Campus"),
                     body.get("status", "Active"),
@@ -352,9 +365,9 @@ def handle_post_students(handler_instance, query_params, body):
                     body.get("gender", "Male"),
                     body.get("dob", "2005-01-01"),
                     dept,
-                    body.get("year", "First Year"),
-                    body.get("semester", "Semester 1"),
-                    body.get("division", "A"),
+                    year,
+                    semester,
+                    division,
                     body.get("admissionYear", "2026"),
                     body.get("address", "College Campus"),
                     body.get("status", "Active"),
@@ -380,7 +393,7 @@ def handle_post_students(handler_instance, query_params, body):
             success_msg = "Student record updated successfully!"
             cred_payload = None
         else:
-            username = s_id  # Enrollment Number is the login identifier
+            username = s_id  # Enrollment Number is the login username
             plain_pass = body.get("password") or generate_temp_password()
             hashed = hash_password(plain_pass)
             cursor.execute(
@@ -394,8 +407,12 @@ def handle_post_students(handler_instance, query_params, body):
                 "rollNumber": roll_number,
                 "role": "Student",
                 "department": dept,
+                "year": year,
+                "semester": semester,
+                "division": division,
                 "username": s_id,
                 "temporaryPassword": plain_pass,
+                "status": "Created",
                 "loginUrl": "/login.html"
             }
 
@@ -417,12 +434,12 @@ def handle_post_students(handler_instance, query_params, body):
 register_route('POST', '/api/students', handle_post_students)
 
 # ----------------------------------------------------
-# Bulk Student Add
+# Bulk Student Add (Admin or HOD)
 # ----------------------------------------------------
 def handle_post_students_bulk(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
     if not user or not (is_admin(user) or is_hod(user)):
-        return handler_instance._send_json({"success": False, "message": "Permission denied"}, 403)
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Administrator or Head of Department (HOD) can manage student records"}, 403)
 
     user_dept = user.get('department')
     default_dept = user_dept if is_hod(user) else (body.get("department") or "Computer Engineering")
@@ -441,6 +458,7 @@ def handle_post_students_bulk(handler_instance, query_params, body):
 
     inserted_cnt = 0
     skipped_cnt = 0
+    credentials = []
 
     try:
         for s in students_list:
@@ -462,6 +480,11 @@ def handle_post_students_bulk(handler_instance, query_params, body):
                 skipped_cnt += 1
                 continue
 
+            cursor.execute("SELECT id FROM users WHERE username = %s OR student_id = %s", (s_id, s_id))
+            if cursor.fetchone():
+                skipped_cnt += 1
+                continue
+
             cursor.execute(
                 """INSERT INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')""",
@@ -476,10 +499,21 @@ def handle_post_students_bulk(handler_instance, query_params, body):
             temp_pass = generate_temp_password()
             hashed = hash_password(temp_pass)
             cursor.execute(
-                "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)",
+                "INSERT INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)",
                 (username, hashed, "Student", name, email, dept, s_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), time.strftime('%Y-%m-%d %H:%M:%S'))
             )
 
+            credentials.append({
+                "name": name,
+                "enrollmentNumber": s_id,
+                "department": dept,
+                "year": year,
+                "semester": sem,
+                "division": div,
+                "username": s_id,
+                "temporaryPassword": temp_pass,
+                "status": "Created"
+            })
             inserted_cnt += 1
 
         conn.commit()
@@ -487,7 +521,8 @@ def handle_post_students_bulk(handler_instance, query_params, body):
             "success": True,
             "message": f"Bulk insertion complete! Added {inserted_cnt} new students. Skipped {skipped_cnt} existing duplicates.",
             "inserted": inserted_cnt,
-            "skipped": skipped_cnt
+            "skipped": skipped_cnt,
+            "credentials": credentials
         })
     except Exception as e:
         conn.rollback()
@@ -519,13 +554,11 @@ def handle_post_faculty_students_assign(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Validate faculty belongs to HOD's department
         cursor.execute("SELECT department FROM faculty WHERE id = %s", (fac_id,))
         fac_row = cursor.fetchone()
         if not fac_row or fac_row["department"] != user_dept:
             return handler_instance._send_json({"success": False, "message": f"Forbidden: Faculty '{fac_id}' does not belong to your department ({user_dept})"}, 403)
 
-        # Validate that all students belong to HOD's department
         for sid in stu_ids:
             cursor.execute("SELECT department FROM students WHERE id = %s", (sid,))
             stu_row = cursor.fetchone()
@@ -567,7 +600,6 @@ def handle_post_faculty_students_remove(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Validate faculty belongs to HOD's department
         cursor.execute("SELECT department FROM faculty WHERE id = %s", (fac_id,))
         fac_row = cursor.fetchone()
         if not fac_row or fac_row["department"] != user_dept:
@@ -593,18 +625,18 @@ def handle_post_faculty_students_remove(handler_instance, query_params, body):
 register_route('POST', '/api/faculty-students/remove', handle_post_faculty_students_remove)
 
 # ----------------------------------------------------
-# Import Students from Excel (.xlsx)
+# Import Students from Excel (.xlsx) (Admin or HOD)
 # ----------------------------------------------------
 def handle_post_students_import_excel(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
     if not user:
         return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
 
-    role = user.get('role')
-    user_dept = user.get('department')
-
     if not (is_admin(user) or is_hod(user)):
-        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Admin and HOD can import student records"}, 403)
+        return handler_instance._send_json({"success": False, "message": "Permission denied: Only Administrator or Head of Department (HOD) can import student records"}, 403)
+
+    user_dept = user.get('department')
+    user_is_hod = is_hod(user)
 
     file_b64 = body.get("file_base64") or body.get("file")
     if not file_b64:
@@ -637,7 +669,7 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
                     return i
         return default_idx if default_idx < len(header) else -1
 
-    idx_id = get_col_idx(["studentid", "id"], 0)
+    idx_id = get_col_idx(["enrollmentnumber", "enrollmentno", "enrollment", "studentid", "id"], 0)
     idx_roll = get_col_idx(["rollnumber", "rollno", "roll"], 1)
     idx_name = get_col_idx(["studentname", "fullname", "name"], 2)
     idx_email = get_col_idx(["email"], 3)
@@ -654,12 +686,33 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
 
     seen_ids = set()
     seen_rolls = set()
+    seen_users = set()
     added_cnt = 0
     dup_cnt = 0
     fail_cnt = 0
     errors = []
+    credentials = []
+
+    student_insert_rows = []
+    user_insert_rows = []
+    now_ts = time.strftime('%Y-%m-%d %H:%M:%S')
 
     try:
+        # Pre-load existing IDs and roll numbers for high performance 1,000+ record bulk import
+        cursor.execute("SELECT id, roll_number, department FROM students")
+        for s_row in cursor.fetchall():
+            if s_row.get("id"):
+                seen_ids.add(s_row["id"])
+            if s_row.get("roll_number") and s_row.get("department"):
+                seen_rolls.add((s_row["roll_number"], s_row["department"]))
+
+        cursor.execute("SELECT username, student_id FROM users")
+        for u_row in cursor.fetchall():
+            if u_row.get("username"):
+                seen_users.add(u_row["username"])
+            if u_row.get("student_id"):
+                seen_users.add(u_row["student_id"])
+
         for r_num, r in enumerate(data_rows, start=2):
             def get_val(idx, default=""):
                 return r[idx].strip() if idx >= 0 and idx < len(r) else default
@@ -671,7 +724,8 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
             mobile = get_val(idx_mobile)
             gender = get_val(idx_gender, "Male")
             dob = get_val(idx_dob, "2005-01-01")
-            dept = get_val(idx_dept, user_dept if role in ["HOD", "Faculty"] else "Computer Engineering")
+            raw_dept = get_val(idx_dept)
+            dept = (user_dept if user_is_hod else (raw_dept or "Computer Engineering")).strip()
             year = get_val(idx_year, "First Year")
             sem = get_val(idx_sem, "Semester 1")
             div = get_val(idx_div, "A")
@@ -679,40 +733,34 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
             address = get_val(idx_address, "College Campus")
             status_val = get_val(idx_status, "Active")
 
-            # Validate Role Scoping
-            if role in ["HOD", "Faculty"] and dept != user_dept:
+            # Validate Department Scoping if user is HOD
+            if user_is_hod and raw_dept and raw_dept != user_dept:
                 fail_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id or "N/A", "name": name or "N/A", "reason": f"Unauthorized department '{dept}'. Restricted to '{user_dept}'."})
+                errors.append({"row": r_num, "student_id": stu_id or "N/A", "name": name or "N/A", "reason": f"Unauthorized department '{raw_dept}'. Restricted to your department '{user_dept}'."})
                 continue
 
             if not stu_id or not roll_no or not name:
                 fail_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id or "N/A", "name": name or "N/A", "reason": "Missing required field (Student ID, Roll Number, or Student Name)"})
+                errors.append({"row": r_num, "student_id": stu_id or "N/A", "name": name or "N/A", "reason": "Missing required field (Enrollment Number, Roll Number, or Student Name)"})
                 continue
 
             if stu_id in seen_ids:
                 dup_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id, "name": name, "reason": f"Duplicate Student ID '{stu_id}' inside Excel file"})
+                errors.append({"row": r_num, "student_id": stu_id, "name": name, "reason": f"Enrollment Number '{stu_id}' already registered in database or duplicate in file"})
+                continue
+
+            if stu_id in seen_users:
+                dup_cnt += 1
+                errors.append({"row": r_num, "student_id": stu_id, "name": name, "reason": f"Login account with username '{stu_id}' already exists in database"})
                 continue
 
             if (roll_no, dept) in seen_rolls:
                 dup_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id, "name": name, "reason": f"Duplicate Roll Number '{roll_no}' in department '{dept}' inside Excel file"})
-                continue
-
-            cursor.execute("SELECT id FROM students WHERE id = %s", (stu_id,))
-            if cursor.fetchone():
-                dup_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id, "name": name, "reason": f"Student ID '{stu_id}' already exists in database"})
-                continue
-
-            cursor.execute("SELECT id FROM students WHERE roll_number = %s AND department = %s", (roll_no, dept))
-            if cursor.fetchone():
-                dup_cnt += 1
-                errors.append({"row": r_num, "student_id": stu_id, "name": name, "reason": f"Roll Number '{roll_no}' already exists in department '{dept}' in database"})
+                errors.append({"row": r_num, "student_id": stu_id, "name": name, "reason": f"Roll Number '{roll_no}' already exists in department '{dept}'"})
                 continue
 
             seen_ids.add(stu_id)
+            seen_users.add(stu_id)
             seen_rolls.add((roll_no, dept))
 
             if not email:
@@ -720,21 +768,44 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
             if not mobile:
                 mobile = "9876543210"
 
-            cursor.execute(
-                """INSERT INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (stu_id, roll_no, name, email, mobile, gender, dob, dept, year, sem, div, adm_year, address, status_val)
-            )
+            student_insert_rows.append((
+                stu_id, roll_no, name, email, mobile, gender, dob, dept, year, sem, div, adm_year, address, status_val
+            ))
 
             username = stu_id
             temp_pass = generate_temp_password()
             hashed = hash_password(temp_pass)
-            cursor.execute(
-                "INSERT IGNORE INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)",
-                (username, hashed, "Student", name, email, dept, stu_id, mobile, time.strftime('%Y-%m-%d %H:%M:%S'), time.strftime('%Y-%m-%d %H:%M:%S'))
-            )
+
+            user_insert_rows.append((
+                username, hashed, "Student", name, email, dept, stu_id, mobile, now_ts, now_ts
+            ))
+
+            credentials.append({
+                "name": name,
+                "enrollmentNumber": stu_id,
+                "department": dept,
+                "year": year,
+                "semester": sem,
+                "division": div,
+                "username": stu_id,
+                "temporaryPassword": temp_pass,
+                "status": "Created"
+            })
 
             added_cnt += 1
+
+        if student_insert_rows:
+            cursor.executemany(
+                """INSERT INTO students (id, roll_number, name, email, mobile, gender, dob, department, year, semester, division, admission_year, address, status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                student_insert_rows
+            )
+        if user_insert_rows:
+            cursor.executemany(
+                """INSERT INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)""",
+                user_insert_rows
+            )
 
         conn.commit()
         return handler_instance._send_json({
@@ -743,6 +814,7 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
             "addedCount": added_cnt,
             "duplicateCount": dup_cnt,
             "failedCount": fail_cnt,
+            "credentials": credentials,
             "errors": errors
         })
     except Exception as e:
@@ -755,16 +827,120 @@ def handle_post_students_import_excel(handler_instance, query_params, body):
 register_route('POST', '/api/students/import-excel', handle_post_students_import_excel)
 
 # ----------------------------------------------------
-# Delete Student (Administrator Only)
+# Export Credentials as Excel (.xlsx)
+# ----------------------------------------------------
+def handle_post_students_export_credentials(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Unauthorized: Only HOD or Administrator can export credentials"}, 403)
+
+    creds_list = body.get("credentials", [])
+    if not isinstance(creds_list, list) or len(creds_list) == 0:
+        return handler_instance._send_json({"success": False, "message": "No credential records provided to export"}, 400)
+
+    # Department Scoping check for HOD
+    if is_hod(user):
+        user_dept = user.get("department")
+        for cred in creds_list:
+            c_dept = (cred.get("department") or "").strip()
+            if c_dept and c_dept != user_dept:
+                return handler_instance._send_json({"success": False, "message": f"Forbidden: HOD can only export credentials for their own department ({user_dept})."}, 403)
+
+    try:
+        xlsx_bytes = create_credentials_xlsx(creds_list)
+        timestamp = time.strftime('%Y%m%d_%H%M%S')
+        filename = f"student_login_credentials_{timestamp}.xlsx"
+        handler_instance.send_response(200)
+        handler_instance.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        handler_instance.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        handler_instance.send_header("Content-Length", str(len(xlsx_bytes)))
+        handler_instance.send_header("Access-Control-Allow-Origin", "*")
+        handler_instance.send_header("Access-Control-Expose-Headers", "Content-Disposition")
+        handler_instance.end_headers()
+        handler_instance.wfile.write(xlsx_bytes)
+    except Exception as ex:
+        return handler_instance._send_json({"success": False, "message": f"Failed to generate Excel credentials file: {ex}"}, 500)
+
+register_route('POST', '/api/students/export-credentials', handle_post_students_export_credentials)
+
+# ----------------------------------------------------
+# Reset Student Password (Admin or HOD)
+# ----------------------------------------------------
+def handle_post_students_reset_password(handler_instance, query_params, body):
+    user = get_current_user(handler_instance)
+    if not user or not (is_admin(user) or is_hod(user)):
+        return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 403)
+
+    user_dept = user.get('department')
+    stu_id = (body.get("id") or body.get("student_id") or body.get("enrollmentNumber") or "").strip()
+    if not stu_id:
+        return handler_instance._send_json({"success": False, "message": "Student ID / Enrollment Number is required"}, 400)
+
+    conn = get_db_connection()
+    if not conn:
+        return handler_instance._send_json({'success': False, 'message': 'DB Error'}, 500)
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        cursor.execute("SELECT id, name, department, roll_number, email FROM students WHERE id = %s", (stu_id,))
+        student = cursor.fetchone()
+        if not student:
+            return handler_instance._send_json({"success": False, "message": f"Student '{stu_id}' not found."}, 404)
+
+        if is_hod(user) and student.get("department") != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: HOD can only reset passwords for students in department '{user_dept}'."}, 403)
+
+        new_temp_pass = generate_temp_password()
+        hashed = hash_password(new_temp_pass)
+        now_ts = time.strftime('%Y-%m-%d %H:%M:%S')
+
+        cursor.execute("SELECT id FROM users WHERE student_id = %s OR username = %s", (stu_id, stu_id))
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            cursor.execute(
+                "UPDATE users SET password = %s, must_change_password = 1, temp_password_created_at = %s, status = 'Active' WHERE id = %s",
+                (hashed, now_ts, existing_user["id"])
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO users (username, password, role, name, email, department, student_id, mobile, created_at, status, must_change_password, temp_password_created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active', 1, %s)",
+                (stu_id, hashed, "Student", student["name"], student.get("email") or f"{stu_id.lower()}@college.edu", student["department"], stu_id, "9876543210", now_ts, now_ts)
+            )
+
+        conn.commit()
+        return handler_instance._send_json({
+            "success": True,
+            "message": f"Password reset successfully for student '{stu_id}'.",
+            "credentials": {
+                "name": student["name"],
+                "enrollmentNumber": stu_id,
+                "rollNumber": student.get("roll_number", "N/A"),
+                "role": "Student",
+                "department": student["department"],
+                "username": stu_id,
+                "temporaryPassword": new_temp_pass,
+                "loginUrl": "/login.html"
+            }
+        })
+    except Exception as e:
+        conn.rollback()
+        return handler_instance._send_json({"success": False, "message": f"Database error: {str(e)}"}, 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+register_route('POST', '/api/students/reset-password', handle_post_students_reset_password)
+
+# ----------------------------------------------------
+# Delete Student (Admin or HOD for Own Department)
 # ----------------------------------------------------
 def handle_delete_students(handler_instance, query_params, body):
     user = get_current_user(handler_instance)
-    if not user:
+    if not user or not (is_admin(user) or is_hod(user)):
         return handler_instance._send_json({"success": False, "message": "Unauthorized"}, 401)
 
-    if not is_admin(user):
-        return handler_instance._send_json({"success": False, "message": "Forbidden: Only Administrator can delete student records"}, 403)
-
+    user_dept = user.get('department')
     item_id = query_params.get("id", [None])[0] or body.get("id")
     if not item_id:
         return handler_instance._send_json({"success": False, "message": "Student ID required for deletion"}, 400)
@@ -775,10 +951,13 @@ def handle_delete_students(handler_instance, query_params, body):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT id FROM students WHERE id = %s", (item_id,))
+        cursor.execute("SELECT id, department FROM students WHERE id = %s", (item_id,))
         stu = cursor.fetchone()
         if not stu:
             return handler_instance._send_json({"success": False, "message": "Student not found"}, 404)
+
+        if is_hod(user) and stu.get("department") != user_dept:
+            return handler_instance._send_json({"success": False, "message": f"Forbidden: Cannot delete student belonging to another department ({stu.get('department')})"}, 403)
 
         cursor.execute("DELETE FROM faculty_students WHERE student_id = %s", (item_id,))
         cursor.execute("DELETE FROM attendance WHERE student_id = %s", (item_id,))

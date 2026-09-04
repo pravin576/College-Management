@@ -412,6 +412,36 @@
                 </div>
               </div>
 
+              <!-- Generated Student Credentials Report Table & Export -->
+              <div id="studentExcelCredSection" class="d-none mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                  <h6 class="fw-bold text-success mb-0"><i class="bi bi-shield-check me-1"></i> Generated Student Credentials (<span id="resStuCredCount">0</span>)</h6>
+                  <button type="button" class="btn btn-sm btn-success fw-bold" onclick="downloadStudentCredentialsExcel()">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Credentials (Excel)
+                  </button>
+                </div>
+                <div class="table-responsive border rounded bg-white overflow-auto" style="max-height: 250px;">
+                  <table class="table table-sm table-hover mb-0 small">
+                    <thead class="bg-light sticky-top">
+                      <tr>
+                        <th>Enrollment No</th>
+                        <th>Student Name</th>
+                        <th>Department</th>
+                        <th>Year</th>
+                        <th>Sem</th>
+                        <th>Div</th>
+                        <th>Username</th>
+                        <th>Temporary Password</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="studentExcelCredTableBody">
+                      <tr><td colspan="9" class="text-center text-muted">No credentials generated yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               <!-- Error Report Table -->
               <div id="studentExcelErrorSection" class="d-none">
                 <div class="d-flex justify-content-between align-items-center mb-2">

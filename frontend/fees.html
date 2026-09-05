@@ -58,10 +58,10 @@
 
         <div class="d-flex align-items-center gap-2">
           <button class="erp-icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i class="bi bi-moon-stars"></i></button>
-          <button class="btn btn-sm btn-success fw-bold action-pay-fee" onclick="openModal('payFeeModal')" id="btnPayFee">
+          <button class="btn btn-sm btn-success fw-bold action-pay-fee" onclick="openPayFeeModal()" id="btnPayFee">
             <i class="bi bi-credit-card me-1"></i> Make Fee Payment
           </button>
-          <button class="btn btn-sm btn-primary fw-bold action-add-fee" onclick="openModal('manageFeeModal')">
+          <button class="btn btn-sm btn-primary fw-bold action-add-fee" onclick="openAddFeeModal()">
             <i class="bi bi-plus-lg me-1"></i> Manage Student Fee Record
           </button>
         </div>
@@ -103,10 +103,21 @@
         <div class="card mb-4">
           <div class="card-body">
             <div class="row g-3">
-              <div class="col-md-6">
+              <div class="col-md-5">
                 <input type="text" id="searchFeesInput" class="form-control" placeholder="Search fee records by Enrollment Number or Name..." onkeyup="filterFeesTable()">
               </div>
-              <div class="col-md-6">
+              <div class="col-md-4">
+                <select id="filterFeeDept" class="form-select" onchange="filterFeesTable()">
+                  <option value="All">All Departments</option>
+                  <option value="Computer Engineering">Computer Engineering</option>
+                  <option value="Information Technology">Information Technology</option>
+                  <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  <option value="Civil Engineering">Civil Engineering</option>
+                  <option value="Electrical Engineering">Electrical Engineering</option>
+                  <option value="Electronics & Telecommunication">Electronics & Telecommunication</option>
+                </select>
+              </div>
+              <div class="col-md-3">
                 <select id="filterFeeStatus" class="form-select" onchange="filterFeesTable()">
                   <option value="All">All Payment Statuses</option>
                   <option value="Paid">Paid</option>
@@ -122,7 +133,7 @@
         <div class="card shadow-sm">
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-hover mb-0">
+              <table class="table table-hover mb-0 align-middle">
                 <thead>
                   <tr>
                     <th>Enrollment Number</th>
@@ -137,7 +148,7 @@
                   </tr>
                 </thead>
                 <tbody id="feesTableBody">
-                  <tr><td colspan="9" class="text-center text-muted py-4">No data available.</td></tr>
+                  <tr><td colspan="9" class="text-center text-muted py-4">Loading fees data...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -157,14 +168,16 @@
         </div>
         <form id="payFeeForm" onsubmit="handlePayFeeSubmit(event)">
           <div class="modal-body">
+            <div id="payFeeStudentInfo"></div>
             <div class="mb-3">
               <label class="form-label">Payment Amount (₹) *</label>
-              <input type="number" id="payFeeAmount" class="form-control" min="100" max="200000" step="100" required placeholder="Enter amount to pay">
+              <input type="number" id="payFeeAmount" class="form-control" min="1" max="200000" step="1" required placeholder="Enter amount to pay">
+              <div class="form-text">You can pay partially or full remaining pending balance.</div>
             </div>
             <div class="mb-3">
               <label class="form-label">Payment Mode</label>
               <select id="payFeeMode" class="form-select">
-                <option value="UPI">UPI / QR Code</option>
+                <option value="UPI">UPI / QR Code (Instant)</option>
                 <option value="NetBanking">Net Banking</option>
                 <option value="Card">Debit / Credit Card</option>
               </select>
@@ -172,7 +185,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" onclick="closeModal('payFeeModal')">Cancel</button>
-            <button type="submit" class="btn btn-success fw-bold">Confirm Payment</button>
+            <button type="submit" class="btn btn-success fw-bold" id="btnConfirmFeePay">Confirm Payment</button>
           </div>
         </form>
       </div>
@@ -184,7 +197,7 @@
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title"><i class="bi bi-currency-rupee me-2"></i> Update Student Fee Record</h5>
+          <h5 class="modal-title" id="manageFeeModalTitle"><i class="bi bi-currency-rupee me-2"></i> Add Student Fee Record</h5>
           <button type="button" class="btn-close text-white" onclick="closeModal('manageFeeModal')">✕</button>
         </div>
         <form id="manageFeeForm" onsubmit="saveFeeRecordForm(event)">
@@ -192,7 +205,8 @@
             <input type="hidden" id="feeRecordDbId">
             <div class="mb-3">
               <label class="form-label">Enrollment Number *</label>
-              <input type="text" id="feeStudentId" class="form-control" required placeholder="e.g. EN20260001">
+              <input type="text" id="feeStudentId" class="form-control" required placeholder="e.g. EN20260001" oninput="lookupStudentInfo()">
+              <div class="form-text" id="feeStudentLookupHelp">Enter student enrollment number or roll number.</div>
             </div>
             <div class="mb-3">
               <label class="form-label">Student Name *</label>
@@ -212,11 +226,11 @@
             <div class="row g-2 mb-3">
               <div class="col-md-6">
                 <label class="form-label">Total Fees (₹) *</label>
-                <input type="number" id="feeTotal" class="form-control" required value="85000">
+                <input type="number" id="feeTotal" class="form-control" required min="0" value="85000">
               </div>
               <div class="col-md-6">
                 <label class="form-label">Paid Amount (₹) *</label>
-                <input type="number" id="feePaid" class="form-control" required value="0">
+                <input type="number" id="feePaid" class="form-control" required min="0" value="0">
               </div>
             </div>
           </div>
@@ -237,7 +251,7 @@
           <h5 class="modal-title"><i class="bi bi-receipt me-2"></i> Official Fee Receipt</h5>
           <button type="button" class="btn-close text-white" onclick="closeModal('feeReceiptModal')">✕</button>
         </div>
-        <div class="modal-body p-4">
+        <div class="modal-body p-4" id="printableReceiptArea">
           <div class="text-center border-bottom pb-3 mb-3">
             <h5 class="fw-bold text-dark mb-1">Government Polytechnic, Awasari (Kh.)</h5>
             <div class="text-muted small">Fee Payment Acknowledgement Receipt</div>
@@ -257,6 +271,9 @@
               <tr><td>Payment Status</td><td class="text-end"><span class="badge bg-success" id="recStatus">PAID</span></td></tr>
             </tbody>
           </table>
+          <div class="text-center text-muted small mt-3">
+            <em>This is a computer generated receipt from GPA ERP. No signature required.</em>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeModal('feeReceiptModal')">Close</button>

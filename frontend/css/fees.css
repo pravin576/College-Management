@@ -19,3 +19,42 @@
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
+
+/* Receipt Print Media Queries */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #feeReceiptModal,
+  #feeReceiptModal * {
+    visibility: visible !important;
+  }
+  #feeReceiptModal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: #ffffff !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+  #feeReceiptModal .modal-dialog {
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  #feeReceiptModal .modal-content {
+    border: none !important;
+    box-shadow: none !important;
+  }
+  #feeReceiptModal .modal-header,
+  #feeReceiptModal .modal-footer {
+    display: none !important;
+  }
+  #printableReceiptArea {
+    padding: 20px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+  }
+}

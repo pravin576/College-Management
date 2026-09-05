@@ -237,7 +237,7 @@ function applyRoleVisibility(user) {
   } else if (role === "HOD") {
     // HOD: Daily department-level operations, student & faculty management for own dept, faculty-student assignment
     document.querySelectorAll(".action-add-hod, .action-edit-hod, .nav-admin-only, .role-admin-only, .section-database-controls, .admin-only-control").forEach(el => el.style.display = "none");
-    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-add-student, .action-add-faculty, .action-add-attendance, .action-add-result, .action-add-timetable, .action-assign-student, .action-remove-assignment").forEach(el => el.style.display = "");
+    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-add-student, .action-add-faculty, .action-add-attendance, .action-add-result, .action-add-timetable, .action-add-fee, .action-assign-student, .action-remove-assignment").forEach(el => el.style.display = "");
     const payFeeBtn = document.getElementById("btnPayFee");
     if (payFeeBtn) payFeeBtn.style.display = "none";
 
@@ -246,7 +246,7 @@ function applyRoleVisibility(user) {
 
     // Strict frontend UI lock: Prevent HOD from selecting other departments
     if (dept) {
-      document.querySelectorAll("select#departmentFilter, select#deptFilter, select#filterDepartment, select#modalDepartment, select#modalFacultyDept, select#modalStudentDepartment, select#modalAttendanceDepartment, select#reportDeptFilter, select#modalNoticeDepartment").forEach(select => {
+      document.querySelectorAll("select#departmentFilter, select#deptFilter, select#filterDepartment, select#modalDepartment, select#modalFacultyDept, select#modalStudentDepartment, select#modalAttendanceDepartment, select#reportDeptFilter, select#modalNoticeDepartment, select#feeDepartment, select#filterFeeDept").forEach(select => {
         select.value = dept;
         select.disabled = true;
         select.title = `Department strictly restricted to ${dept}`;
@@ -255,7 +255,7 @@ function applyRoleVisibility(user) {
 
   } else if (["Administrator", "Admin", "Principal"].includes(role)) {
     // Administrative / Principal: Institutional monitoring & authority, HOD management, reports, notices, database controls. NO daily student/faculty data-entry or faculty-student assignment.
-    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-assign-student, .action-remove-assignment, .action-assign-faculty-students, .action-add-student, .action-add-faculty, .action-add-attendance, .action-add-result, .action-add-timetable").forEach(el => el.style.display = "none");
+    document.querySelectorAll(".role-hod-only, .section-faculty-student-assignment, #facultyStudentAssignmentCard, .action-assign-student, .action-remove-assignment, .action-assign-faculty-students, .action-add-student, .action-add-faculty, .action-add-attendance, .action-add-result, .action-add-timetable, .action-add-fee").forEach(el => el.style.display = "none");
     document.querySelectorAll(".nav-admin-only, .role-admin-only, .action-add-hod, .action-edit-hod, .action-publish-notice, .section-database-controls, .admin-only-control").forEach(el => el.style.display = "");
     const payFeeBtn = document.getElementById("btnPayFee");
     if (payFeeBtn) payFeeBtn.style.display = "none";

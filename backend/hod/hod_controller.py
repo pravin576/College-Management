@@ -49,13 +49,13 @@ def handle_get_hod_dashboard_stats(handler_instance, query_params, body):
         att_row = cursor.fetchone()
         tot_att = (att_row['total_att'] if att_row else 0) or 0
         pres_att = (att_row['pres_att'] if att_row else 0) or 0
-        att_pct = round((float(pres_att) / float(tot_att) * 100), 1) if tot_att > 0 else 100.0
+        att_pct = round((float(pres_att) / float(tot_att) * 100), 1) if tot_att > 0 else None
 
         cursor.execute("SELECT COUNT(*) as total_res, SUM(CASE WHEN r.status = 'Pass' THEN 1 ELSE 0 END) as pass_res FROM results r JOIN students s ON r.student_id = s.id WHERE s.department = %s", (target_dept,))
         res_row = cursor.fetchone()
         tot_res = (res_row['total_res'] if res_row else 0) or 0
         pass_res = (res_row['pass_res'] if res_row else 0) or 0
-        pass_pct = round((float(pass_res) / float(tot_res) * 100), 1) if tot_res > 0 else 100.0
+        pass_pct = round((float(pass_res) / float(tot_res) * 100), 1) if tot_res > 0 else None
 
         cursor.execute("SELECT SUM(pending_fees) as pending FROM fees WHERE department = %s", (target_dept,))
         fee_row = cursor.fetchone()

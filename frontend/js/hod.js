@@ -83,8 +83,8 @@ async function loadHodDashboardStats(dept = currentDept) {
     if (document.getElementById("countTotalStudents")) document.getElementById("countTotalStudents").textContent = `${s.totalStudents || 0} Students`;
 
     if (document.getElementById("hodTotalFaculty")) document.getElementById("hodTotalFaculty").textContent = `${s.totalFaculty || 0} Faculty`;
-    if (document.getElementById("hodAttendanceRate")) document.getElementById("hodAttendanceRate").textContent = `${s.attendancePercentage || 100}%`;
-    if (document.getElementById("hodPassPercentage")) document.getElementById("hodPassPercentage").textContent = `${s.resultPassPercentage || 100}%`;
+    if (document.getElementById("hodAttendanceRate")) document.getElementById("hodAttendanceRate").textContent = (s.attendancePercentage !== null && s.attendancePercentage !== undefined) ? `${s.attendancePercentage}%` : "N/A";
+    if (document.getElementById("hodPassPercentage")) document.getElementById("hodPassPercentage").textContent = (s.resultPassPercentage !== null && s.resultPassPercentage !== undefined) ? `${s.resultPassPercentage}%` : "N/A";
     if (document.getElementById("hodPendingFees")) document.getElementById("hodPendingFees").textContent = `₹${(s.pendingFees || 0).toLocaleString()}`;
   }
 }

@@ -109,12 +109,12 @@ function renderReportTable(type, data, summary) {
   } else if (type === "attendance") {
     title.innerHTML = `<i class="bi bi-calendar-check-fill me-2 text-primary"></i> Attendance Summary Report`;
     const presentCnt = summary.presentCount || data.filter(d => d.status === "Present").length;
-    const attPct = data.length > 0 ? ((presentCnt / data.length) * 100).toFixed(1) : "100.0";
+    const attPct = data.length > 0 ? `${((presentCnt / data.length) * 100).toFixed(1)}%` : "N/A";
 
     document.getElementById("reportMetric2Title").textContent = "Present Entries";
     document.getElementById("reportMetric2").textContent = presentCnt;
     document.getElementById("reportMetric3Title").textContent = "Overall Attendance %";
-    document.getElementById("reportMetric3").textContent = `${attPct}%`;
+    document.getElementById("reportMetric3").textContent = attPct;
 
     head.innerHTML = `
       <tr>
@@ -143,12 +143,12 @@ function renderReportTable(type, data, summary) {
   } else if (type === "results") {
     title.innerHTML = `<i class="bi bi-journal-bookmark-fill me-2 text-primary"></i> Academic Results Report`;
     const passCnt = summary.passCount || data.filter(d => d.status === "Pass").length;
-    const passPct = data.length > 0 ? ((passCnt / data.length) * 100).toFixed(1) : "100.0";
+    const passPct = data.length > 0 ? `${((passCnt / data.length) * 100).toFixed(1)}%` : "N/A";
 
     document.getElementById("reportMetric2Title").textContent = "Passed Students";
     document.getElementById("reportMetric2").textContent = passCnt;
     document.getElementById("reportMetric3Title").textContent = "Pass Percentage";
-    document.getElementById("reportMetric3").textContent = `${passPct}%`;
+    document.getElementById("reportMetric3").textContent = passPct;
 
     head.innerHTML = `
       <tr>

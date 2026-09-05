@@ -100,8 +100,8 @@ async function loadDashboardData(user) {
     if (["Administrator", "Admin"].includes(user.role)) {
       if (document.getElementById("adminStatHODs")) document.getElementById("adminStatHODs").textContent = s.totalHODs || 0;
       if (document.getElementById("adminStatDepts")) document.getElementById("adminStatDepts").textContent = s.totalDepartments || 0;
-      if (document.getElementById("adminStatAttendance")) document.getElementById("adminStatAttendance").textContent = `${s.attendancePercentage || 100}%`;
-      if (document.getElementById("adminStatPassRate")) document.getElementById("adminStatPassRate").textContent = `${s.resultPassPercentage || 100}%`;
+      if (document.getElementById("adminStatAttendance")) document.getElementById("adminStatAttendance").textContent = (s.attendancePercentage !== null && s.attendancePercentage !== undefined) ? `${s.attendancePercentage}%` : "N/A";
+      if (document.getElementById("adminStatPassRate")) document.getElementById("adminStatPassRate").textContent = (s.resultPassPercentage !== null && s.resultPassPercentage !== undefined) ? `${s.resultPassPercentage}%` : "N/A";
       if (document.getElementById("adminStatPendingFees")) document.getElementById("adminStatPendingFees").textContent = `₹${(s.totalPendingFees || 0).toLocaleString()}`;
       if (document.getElementById("adminStatPendingUsers")) document.getElementById("adminStatPendingUsers").textContent = s.pendingUsers || 0;
 
@@ -116,7 +116,7 @@ async function loadDashboardData(user) {
       if (document.getElementById("hodStatFirstYear")) document.getElementById("hodStatFirstYear").textContent = `${s.firstYearStudents || 0} Students`;
       if (document.getElementById("hodStatSecondYear")) document.getElementById("hodStatSecondYear").textContent = `${s.secondYearStudents || 0} Students`;
       if (document.getElementById("hodStatThirdYear")) document.getElementById("hodStatThirdYear").textContent = `${s.thirdYearStudents || 0} Students`;
-      if (document.getElementById("hodStatPassRate")) document.getElementById("hodStatPassRate").textContent = `${s.resultPassPercentage || 100}%`;
+      if (document.getElementById("hodStatPassRate")) document.getElementById("hodStatPassRate").textContent = (s.resultPassPercentage !== null && s.resultPassPercentage !== undefined) ? `${s.resultPassPercentage}%` : "N/A";
 
       renderHodDeptFaculty(s.departmentFaculty || []);
       renderHodRecentStudents(s.recentStudents || []);
@@ -173,9 +173,9 @@ function renderAdminDeptMatrix(deptStats) {
       <td>
         <div class="d-flex align-items-center gap-2">
           <div class="progress flex-grow-1" style="height: 6px; width: 60px; background-color: #e2e8f0;">
-            <div class="progress-bar bg-success" style="width: ${Math.min(100, d.attendanceRate || 0)}%"></div>
+            <div class="progress-bar bg-success" style="width: ${d.attendanceRate != null ? Math.min(100, d.attendanceRate) : 0}%"></div>
           </div>
-          <span class="small fw-bold">${d.attendanceRate}%</span>
+          <span class="small fw-bold">${d.attendanceRate !== null && d.attendanceRate !== undefined ? `${d.attendanceRate}%` : 'N/A'}</span>
         </div>
       </td>
       <td>
